@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bear Trainer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#0f1218; --panel:#171b24; --line:#262c3a; --text:#e6e9ef; --dim:#8b93a7; --up:#2ebd85; --down:#f6465d; --accent:#5b8def; --warn:#e6b450; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center; padding:12px 20px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:17px; margin:0 8px 0 0; }
+  header label { color:var(--dim); font-size:12px; display:flex; flex-direction:column; gap:3px; }
+  select, button { font:inherit; color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:6px 10px; }
+  button { cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button.calls { background:rgba(46,189,133,.15); border-color:var(--up); color:var(--up); font-weight:700; padding:10px 22px; font-size:15px; }
+  button.puts { background:rgba(246,70,93,.15); border-color:var(--down); color:var(--down); font-weight:700; padding:10px 22px; font-size:15px; }
+  button:disabled { opacity:.45; cursor:default; }
+  #stats { margin-left:auto; display:flex; gap:18px; font-size:12px; color:var(--dim); }
+  #stats b { display:block; font-size:16px; color:var(--text); }
+  main { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:16px; padding:16px 20px; max-width:1500px; margin:0 auto; }
+  @media (max-width:1000px) { main { grid-template-columns:1fr; } }
+  .box { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  #head { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:baseline; margin-bottom:8px; }
+  #head .big { font-size:16px; font-weight:700; }
+  #head .dim, .dim { color:var(--dim); }
+  .tf { display:flex; gap:6px; align-items:center; margin-bottom:8px; font-size:12px; color:var(--dim); }
+  .tf button { padding:3px 10px; font-size:12px; }
+  .tf button.on { border-color:var(--accent); color:var(--accent); }
+  canvas { width:100%; height:560px; display:block; border-radius:6px; background:#0b0e14; }
+  h3 { margin:0 0 8px; font-size:14px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:99px; font-size:12px; border:1px solid var(--line); }
+  .good { color:var(--up); } .bad { color:var(--down); } .warn { color:var(--warn); }
+  #pnl { font-size:22px; font-weight:700; margin:4px 0; }
+  #timeline { max-height:300px; overflow:auto; margin-top:8px; border-top:1px solid var(--line); }
+  #timeline div { padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  #timeline .tm { color:var(--dim); font-size:12px; margin-right:6px; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  td { padding:4px 0; border-bottom:1px solid var(--line); }
+  td:last-child { text-align:right; font-weight:600; }
+  #bearimg { max-width:100%; max-height:520px; border-radius:6px; margin-top:8px; display:block; }
+  .small { font-size:12px; color:var(--dim); }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bear Trainer</h1>
+  <label>Entry time<select id="fTod"><option value="open">Opening bell (9:30–9:45)</option><option value="all">All times</option><option value="morning">Morning (9:45–12)</option><option value="midday">Midday (12–2)</option><option value="late">Late (2–4)</option></select></label>
+  <label>Setup<select id="fSetup"><option value="all">All</option><option>Daytrade</option><option>Lotto</option><option>Swing</option></select></label>
+  <label>Ticker<select id="fTk"><option value="all">All</option><option>QQQ</option><option>SPY</option><option>SPX</option><option>IWM</option></select></label>
+  <label>Year<select id="fYr"><option value="all">All</option><option>2026</option><option>2025</option><option>2024</option><option>2023</option><option>2022</option></select></label>
+  <label>Show<select id="fSeen"><option value="unseen">Trades I haven't done</option><option value="any">Any trade</option></select></label>
+  <div id="stats"></div>
+</header>
+<main>
+  <section class="box">
+    <div id="head"></div>
+    <div class="tf">Chart: <button id="tf5" class="on">5 min</button><button id="tf15">15 min</button>
+      <span>RSI 14 with a 34-bar median and 2σ bands. These settings were fitted to the labels on Bear's own screenshots.</span></div>
+    <canvas id="chart"></canvas>
+  </section>
+  <aside>
+    <div class="box" id="biasBox" style="margin-bottom:12px">
+      <h3>Bigger picture at this moment</h3>
+      <table id="biasTable"></table>
+      <div class="small" style="margin-top:8px">Bear's rules: above the median he leans long, below it short. When the 4-hour RSI is outside the bands, he doesn't fight that trend until it closes back inside.</div>
+    </div>
+    <div class="box" id="guessBox">
+      <h3>What would you take here?</h3>
+      <div class="small">Bear entered a trade at the dashed line. You see only what he saw.</div>
+      <div class="row"><button class="calls" id="bCalls">Calls</button><button class="puts" id="bPuts">Puts</button></div>
+      <div class="row"><button id="bSkip">Skip this one</button></div>
+    </div>
+    <div class="box hidden" id="replayBox">
+      <div id="verdict"></div>
+      <div id="bearTrade" style="margin:8px 0"></div>
+      <div class="small">Estimated option price</div>
+      <div id="pnl"></div>
+      <div class="row">
+        <button id="s1">+1 min</button><button id="s5" class="primary">+5 min</button><button id="s15">+15 min</button><button id="sEnd">To close</button>
+      </div>
+      <div class="row"><button id="bSell">I'd sell here</button><span id="sold" class="small"></span></div>
+      <div id="timeline"></div>
+    </div>
+    <div class="box hidden" id="doneBox" style="margin-top:12px">
+      <h3>How it played out</h3>
+      <table id="sumTable"></table>
+      <div class="small" style="margin-top:8px">Option prices are model estimates from 1-minute index data, not real quotes.</div>
+      <img id="bearimg" alt="Bear's chart for this trade">
+      <div class="row"><button class="primary" id="bNext">Next trade</button></div>
+    </div>
+    <div class="box hidden" id="emptyBox">No trades match these filters. Change a filter above, or set "Show" to "Any trade".</div>
+  </aside>
+</main>
+
+<script src="data/trades.js"></script>
+<script>
+(function () {
+  'use strict';
+  var T = window.BEAR_TRADES || [];
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = 'bearTrainerV1';
+  var store = { a: {} };
+  try { var s = localStorage.getItem(KEY); if (s) store = JSON.parse(s) || store; } catch (e) {}
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+
+  var cur = null, stage = 'guess', step = 0, tf = 5, series = null, userExit = null, guess = null;
+  var fmtET = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
+  var fmtDay = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  var fmtMD = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
+  function pct(v) { return (v >= 0 ? '+' : '') + (Math.round(v * 10) / 10) + '%'; }
+  function cls(v) { return v > 0 ? 'good' : v < 0 ? 'bad' : ''; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // ---------- data loading ----------
+  var loading = {};
+  function loadBars(ci, yr) {
+    var k = ci + '_' + yr;
+    if (window.BEAR_BARS && window.BEAR_BARS[k]) return Promise.resolve(window.BEAR_BARS[k]);
+    if (loading[k]) return loading[k];
+    loading[k] = new Promise(function (res) {
+      var sc = document.createElement('script'); sc.src = 'data/bars_' + k + '.js';
+      sc.onload = function () { res((window.BEAR_BARS || {})[k] || null); };
+      sc.onerror = function () { res(null); };
+      document.head.appendChild(sc);
+    });
+    return loading[k];
+  }
+  function buildSeries(t) {
+    var yr = +t.d.slice(0, 4), mo = +t.d.slice(5, 7), dy = +t.d.slice(8, 10);
+    var years = (mo === 1 && dy <= 9) ? [yr - 1, yr] : [yr];
+    return Promise.all(years.map(function (y) { return loadBars(t.ci, y); })).then(function (parts) {
+      var tt = [], o = [], h = [], l = [], c = [];
+      parts.forEach(function (p) { if (!p) return; var sc = p.scale;
+        for (var i = 0; i < p.t.length; i++) { tt.push(p.t[i]); o.push(p.o[i] / sc); h.push(p.h[i] / sc); l.push(p.l[i] / sc); c.push(p.c[i] / sc); } });
+      return { t: tt, o: o, h: h, l: l, c: c };
+    });
+  }
+
+  // ---------- indicators ----------
+  function rsi(c, n) {
+    var out = new Array(c.length).fill(null); if (c.length <= n) return out;
+    var g = 0, l = 0, i;
+    for (i = 1; i <= n; i++) { var d = c[i] - c[i - 1]; if (d > 0) g += d; else l -= d; }
+    g /= n; l /= n; out[n] = l === 0 ? 100 : 100 - 100 / (1 + g / l);
+    for (i = n + 1; i < c.length; i++) { var d2 = c[i] - c[i - 1]; g = (g * (n - 1) + (d2 > 0 ? d2 : 0)) / n; l = (l * (n - 1) + (d2 < 0 ? -d2 : 0)) / n; out[i] = l === 0 ? 100 : 100 - 100 / (1 + g / l); }
+    return out;
+  }
+  function bands(v, n, k) {
+    var mid = new Array(v.length).fill(null), up = mid.slice(), lo = mid.slice();
+    for (var i = 0; i < v.length; i++) {
+      if (i < n - 1 || v[i - n + 1] === null) continue;
+      var s = 0, j; for (j = i - n + 1; j <= i; j++) s += v[j];
+      var m = s / n, q = 0; for (j = i - n + 1; j <= i; j++) q += (v[j] - m) * (v[j] - m);
+      var sd = Math.sqrt(q / n); mid[i] = m; up[i] = m + k * sd; lo[i] = m - k * sd;
+    }
+    return { mid: mid, up: up, lo: lo };
+  }
+
+  // bars completed by cursor time (seconds), aggregated to tf minutes
+  function visibleBars(cursorSec) {
+    var S = series, n = tf / 5, out = { t: [], o: [], h: [], l: [], c: [] }, lastG = null;
+    for (var i = 0; i < S.t.length; i++) {
+      if ((S.t[i] + 1) * 300 > cursorSec) break;
+      var g = Math.floor(S.t[i] / n);
+      if (g !== lastG) { out.t.push(g * n * 300); out.o.push(S.o[i]); out.h.push(S.h[i]); out.l.push(S.l[i]); out.c.push(S.c[i]); lastG = g; }
+      else { var k = out.t.length - 1; if (S.h[i] > out.h[k]) out.h[k] = S.h[i]; if (S.l[i] < out.l[k]) out.l[k] = S.l[i]; out.c[k] = S.c[i]; }
+    }
+    return out;
+  }
+
+  // ---------- chart ----------
+  function draw() {
+    var cv = $('chart'), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr; var x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    x.clearRect(0, 0, W, H);
+    if (!cur || !series || !series.t.length) { x.fillStyle = '#8b93a7'; x.font = '14px system-ui'; x.fillText(cur ? 'No chart data for this day.' : '', 20, 30); return; }
+    var entrySec = cur.t, cursor = entrySec + step * 60;
+    var B = visibleBars(cursor), nb = B.t.length;
+    var closeSec = entrySec + (cur.path[cur.path.length - 1][0]) * 60;
+    var back = tf === 5 ? 150 : 110, barSec = tf * 60;
+    // index of last bar at entry
+    var ie = 0; for (var i = 0; i < nb; i++) if (B.t[i] + barSec <= entrySec) ie = i;
+    var i0 = Math.max(0, ie - back);
+    var futureBars = Math.ceil((closeSec - (B.t[ie] + barSec)) / barSec) + 2;
+    var slots = (ie - i0 + 1) + futureBars;
+    var padL = 8, padR = 62, top = 8, hP = Math.round((H - 40) * 0.68), hR = (H - 40) - hP - 14, yR0 = top + hP + 14;
+    var bw = (W - padL - padR) / slots;
+    var xi = function (i) { return padL + (i - i0 + 0.5) * bw; };
+    var lo = Infinity, hi = -Infinity;
+    for (i = i0; i < nb; i++) { if (B.l[i] < lo) lo = B.l[i]; if (B.h[i] > hi) hi = B.h[i]; }
+    var pad = (hi - lo) * 0.06 || 1; lo -= pad; hi += pad;
+    var yp = function (v) { return top + (hi - v) / (hi - lo) * hP; };
+    // grid + price labels
+    x.font = '11px system-ui'; x.textBaseline = 'middle';
+    var stepP = niceStep((hi - lo) / 6);
+    for (var p = Math.ceil(lo / stepP) * stepP; p < hi; p += stepP) { x.strokeStyle = '#1b2130'; x.beginPath(); x.moveTo(padL, yp(p)); x.lineTo(W - padR, yp(p)); x.stroke(); x.fillStyle = '#8b93a7'; x.fillText(p.toFixed(stepP < 1 ? 2 : stepP < 10 ? 1 : 0), W - padR + 6, yp(p)); }
+    // time labels and day separators
+    var lastDay = '', everyN = Math.max(1, Math.round(70 / bw));
+    for (i = i0; i < i0 + slots; i++) {
+      var ts = i < nb ? B.t[i] : B.t[nb - 1] + (i - nb + 1) * barSec; var dte = new Date(ts * 1000), dayS = fmtMD.format(dte);
+      if (dayS !== lastDay && i < nb) { x.strokeStyle = '#2a3142'; x.setLineDash([2, 4]); x.beginPath(); x.moveTo(xi(i) - bw / 2, top); x.lineTo(xi(i) - bw / 2, H - 22); x.stroke(); x.setLineDash([]); x.fillStyle = '#5b8def'; x.fillText(dayS, xi(i) - bw / 2 + 4, H - 6); lastDay = dayS; }
+      if ((i - i0) % everyN === 0 && xi(i) > 22) { x.fillStyle = '#8b93a7'; x.textAlign = 'center'; x.fillText(fmtET.format(dte), xi(i), H - 18); x.textAlign = 'left'; }
+    }
+    // candles
+    for (i = i0; i < nb; i++) {
+      var up = B.c[i] >= B.o[i]; x.strokeStyle = x.fillStyle = up ? '#2ebd85' : '#f6465d';
+      x.beginPath(); x.moveTo(xi(i), yp(B.h[i])); x.lineTo(xi(i), yp(B.l[i])); x.stroke();
+      var y1 = yp(Math.max(B.o[i], B.c[i])), y2 = yp(Math.min(B.o[i], B.c[i]));
+      x.fillRect(xi(i) - Math.max(1, bw * 0.35), y1, Math.max(2, bw * 0.7), Math.max(1, y2 - y1));
+    }
+    // entry line
+    var xe = padL + (ie - i0 + 1) * bw + ((entrySec - (B.t[ie] + barSec)) / barSec) * bw;
+    x.strokeStyle = '#e6b450'; x.setLineDash([5, 4]); x.beginPath(); x.moveTo(xe, top); x.lineTo(xe, H - 28); x.stroke(); x.setLineDash([]);
+    x.fillStyle = '#e6b450'; x.fillText(stage === 'guess' ? 'Bear enters here' : 'Entry', xe + 5, top + 8);
+    // last price tag
+    if (nb) { var lp = B.c[nb - 1]; x.fillStyle = '#5b8def'; x.fillRect(W - padR + 2, yp(lp) - 8, padR - 4, 16); x.fillStyle = '#fff'; x.fillText(lp.toFixed(lp > 2000 ? 1 : 2), W - padR + 6, yp(lp)); }
+    // trim markers
+    if (stage !== 'guess') cur.ev.forEach(function (e) {
+      if (e.k !== 'trim' || e.m > step) return;
+      var xs = xe + (e.m * 60 / barSec) * bw; x.fillStyle = '#5b8def'; x.beginPath(); x.moveTo(xs, top + hP - 4); x.lineTo(xs - 5, top + hP + 6); x.lineTo(xs + 5, top + hP + 6); x.fill();
+    });
+    if (userExit && stage !== 'guess') { var xu = xe + (userExit.m * 60 / barSec) * bw; x.strokeStyle = '#fff'; x.setLineDash([2, 3]); x.beginPath(); x.moveTo(xu, top); x.lineTo(xu, top + hP); x.stroke(); x.setLineDash([]); x.fillStyle = '#fff'; x.fillText('You sold', xu + 4, top + 22); }
+    // RSI panel
+    var R = rsi(B.c, 14), bb = bands(R, 34, 2);
+    var yr = function (v) { return yR0 + (100 - v) / 100 * hR; };
+    x.strokeStyle = '#1b2130'; [30, 50, 70].forEach(function (v) { x.beginPath(); x.moveTo(padL, yr(v)); x.lineTo(W - padR, yr(v)); x.stroke(); x.fillStyle = '#8b93a7'; x.fillText(String(v), W - padR + 6, yr(v)); });
+    x.strokeStyle = '#262c3a'; x.strokeRect(padL, yR0, W - padL - padR, hR);
+    function line(arr, color, width) { x.strokeStyle = color; x.lineWidth = width; x.beginPath(); var st = false; for (var j = i0; j < nb; j++) { if (arr[j] === null) continue; if (!st) { x.moveTo(xi(j), yr(arr[j])); st = true; } else x.lineTo(xi(j), yr(arr[j])); } x.stroke(); x.lineWidth = 1; }
+    line(bb.up, 'rgba(230,180,80,.7)', 1); line(bb.lo, 'rgba(230,180,80,.7)', 1); line(bb.mid, 'rgba(200,170,230,.9)', 1.2); line(R, '#9fe3f0', 1.6);
+    x.fillStyle = '#8b93a7'; x.fillText('RSI ' + (R[nb - 1] === null || R[nb - 1] === undefined ? '' : R[nb - 1].toFixed(1)) + '   median ' + (bb.mid[nb - 1] == null ? '' : bb.mid[nb - 1].toFixed(1)), padL + 6, yR0 + 10);
+    x.fillText(cur.ci + ' · ' + tf + ' min', padL + 6, top + 8);
+  }
+  function niceStep(v) { var p = Math.pow(10, Math.floor(Math.log10(v))), f = v / p; return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p; }
+
+  // ---------- flow ----------
+  function pool() {
+    var tod = $('fTod').value, su = $('fSetup').value, tk = $('fTk').value, yr = $('fYr').value, seen = $('fSeen').value;
+    return T.filter(function (t) {
+      return (tod === 'all' || t.tod === tod) && (su === 'all' || t.setup === su) && (tk === 'all' || t.tk === tk) && (yr === 'all' || t.d.slice(0, 4) === yr) && (seen === 'any' || !store.a[t.id]);
+    });
+  }
+  function biasRow(name, b) {
+    if (!b) return '<tr><td class="dim">' + name + '</td><td class="dim">Not enough history</td></tr>';
+    var side = b[0] >= b[1] ? '<span class="good">Above median</span>' : '<span class="bad">Below median</span>';
+    var band = b[0] > b[2] ? ' · <span class="warn">above upper band</span>' : b[0] < b[3] ? ' · <span class="warn">below lower band</span>' : ' · inside bands';
+    return '<tr><td class="dim">' + name + ' RSI ' + b[0].toFixed(1) + '<br><span class="small">median ' + b[1].toFixed(1) + ', bands ' + b[3].toFixed(0) + '–' + b[2].toFixed(0) + '</span></td><td>' + side + '<span style="font-weight:400">' + band + '</span></td></tr>';
+  }
+  function optAt(m) { var p = cur.path, v = p[0][1]; for (var i = 0; i < p.length; i++) { if (p[i][0] <= m) v = p[i][1]; else break; } return v / 100; }
+  function maxStep() { return cur.path[cur.path.length - 1][0]; }
+
+  function next() {
+    var P = pool(); userExit = null; guess = null; step = 0; stage = 'guess';
+    ['replayBox', 'doneBox', 'emptyBox'].forEach(function (id) { $(id).classList.add('hidden'); });
+    if (!P.length) { cur = null; series = null; $('guessBox').classList.add('hidden'); $('biasBox').classList.add('hidden'); $('emptyBox').classList.remove('hidden'); $('head').innerHTML = ''; draw(); stats(); return; }
+    cur = P[Math.floor(Math.random() * P.length)];
+    $('guessBox').classList.remove('hidden');
+    $('head').innerHTML = '<span class="big">' + esc(cur.tk) + '</span><span>' + fmtDay.format(new Date(cur.t * 1000)) + ' · ' + cur.hm + ' ET</span><span class="dim">' + P.length + ' trades in this set</span>';
+    $('biasBox').classList.remove('hidden');
+    $('biasTable').innerHTML = biasRow('4-hour', cur.b4) + biasRow('Daily', cur.bd);
+    series = null; draw();
+    var want = cur;
+    buildSeries(cur).then(function (S) { if (cur !== want) return; series = S; draw(); });
+    stats();
+  }
+  function answer(g) {
+    guess = g; stage = 'replay';
+    var match = g === cur.r;
+    store.a[cur.id] = { g: g, match: match }; save();
+    $('guessBox').classList.add('hidden'); $('replayBox').classList.remove('hidden');
+    var side = cur.r === 'C' ? 'calls' : 'puts';
+    $('verdict').innerHTML = match ? '<b class="good">Same side as Bear.</b>' : '<b class="bad">Bear took the other side.</b>';
+    $('bearTrade').innerHTML = 'Bear bought <b>' + esc(cur.tk) + ' ' + cur.k + (cur.r === 'C' ? 'C' : 'P') + '</b> exp ' + cur.exp.slice(5) + ' at <b>$' + cur.e.toFixed(2) + '</b> <span class="pill">' + esc(cur.setup) + '</span> <span class="pill">' + side + '</span>' +
+      (cur.note ? '<div class="small" style="margin-top:6px">His note: “' + esc(cur.note) + '”</div>' : '');
+    $('timeline').innerHTML = ''; $('sold').textContent = ''; $('bSell').disabled = false;
+    shown = 0; render(); stats();
+  }
+  var shown = 0;
+  function render() {
+    var price = optAt(step), p = (price / cur.e - 1) * 100;
+    $('pnl').innerHTML = '$' + price.toFixed(2) + ' <span class="' + cls(p) + '">' + pct(p) + '</span> <span class="small">' + step + ' min after entry</span>';
+    var evs = cur.ev.filter(function (e) { return e.m <= step; });
+    for (; shown < evs.length; shown++) {
+      var e = evs[shown], d = document.createElement('div'), tm = fmtET.format(new Date((cur.t + e.m * 60) * 1000));
+      var label = e.k === 'trim' ? '<b class="good">Bear trims' + (e.p != null ? ' at ' + pct(e.p) : '') + '</b>' : e.k === 'update' ? '<b>Bear update' + (e.p != null ? ': ' + pct(e.p) : '') + '</b>' : '<span class="dim">Bear:</span>';
+      d.innerHTML = '<span class="tm">' + tm + '</span>' + label + (e.x ? ' ' + esc(e.x) : '');
+      $('timeline').prepend(d);
+    }
+    var end = step >= maxStep();
+    ['s1', 's5', 's15', 'sEnd'].forEach(function (id) { $(id).disabled = end; });
+    draw();
+    if (end) finish();
+  }
+  function advance(n) { step = Math.min(maxStep(), step + n); render(); }
+  function sell() { if (userExit) return; var price = optAt(step); userExit = { m: step, p: (price / cur.e - 1) * 100 }; store.a[cur.id].exit = userExit.p; save(); $('bSell').disabled = true; $('sold').innerHTML = 'You sold at <b class="' + cls(userExit.p) + '">' + pct(userExit.p) + '</b>. Keep stepping to see what happened next.'; draw(); stats(); }
+  function finish() {
+    if (stage === 'done') return; stage = 'done';
+    var trims = cur.ev.filter(function (e) { return e.k === 'trim' && e.p != null; }).map(function (e) { return pct(e.p); });
+    var closeP = (optAt(maxStep()) / cur.e - 1) * 100;
+    var rows = [
+      ['Your call', (guess === 'C' ? 'Calls' : 'Puts') + (guess === cur.r ? ' (same as Bear)' : ' (opposite of Bear)')],
+      ['Bear\'s posted trims', trims.length ? trims.join(', ') : 'None posted'],
+      ['Best the option reached', '<span class="' + cls(cur.mx) + '">' + pct(cur.mx) + '</span> after ' + cur.mxm + ' min'],
+      ['Option at the close', '<span class="' + cls(closeP) + '">' + pct(closeP) + '</span>'],
+      ['Sell at +20% / stop at −30%', cur.r20 > 0 ? '<span class="good">Hit +20% first</span>' : cur.r20 <= -0.3 ? '<span class="bad">Stopped at −30%</span>' : '<span class="' + cls(cur.r20) + '">' + pct(cur.r20 * 100) + ' at close</span>'],
+      ['Your exit', userExit ? '<span class="' + cls(userExit.p) + '">' + pct(userExit.p) + '</span> after ' + userExit.m + ' min' : 'You held to the close']
+    ];
+    $('sumTable').innerHTML = rows.map(function (r) { return '<tr><td class="dim">' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('');
+    if (!userExit) { store.a[cur.id].exit = closeP; save(); }
+    var im = $('bearimg'); if (cur.img) { im.classList.remove('hidden'); im.onerror = function () { im.classList.add('hidden'); }; im.src = cur.img; } else im.classList.add('hidden');
+    $('doneBox').classList.remove('hidden'); stats();
+  }
+  function stats() {
+    var ids = Object.keys(store.a), n = ids.length, m = 0, ex = [], i;
+    for (i = 0; i < n; i++) { var a = store.a[ids[i]]; if (a.match) m++; if (typeof a.exit === 'number') ex.push(a.exit); }
+    var avg = ex.length ? ex.reduce(function (s, v) { return s + v; }, 0) / ex.length : null;
+    $('stats').innerHTML = '<div><b>' + n + '</b>trades done</div><div><b>' + (n ? Math.round(m / n * 100) + '%' : '–') + '</b>same side as Bear</div><div><b class="' + (avg === null ? '' : cls(avg)) + '">' + (avg === null ? '–' : pct(avg)) + '</b>your average exit</div>';
+  }
+
+  $('bCalls').onclick = function () { answer('C'); };
+  $('bPuts').onclick = function () { answer('P'); };
+  $('bSkip').onclick = next; $('bNext').onclick = next;
+  $('s1').onclick = function () { advance(1); }; $('s5').onclick = function () { advance(5); }; $('s15').onclick = function () { advance(15); }; $('sEnd').onclick = function () { advance(9999); };
+  $('bSell').onclick = sell;
+  $('tf5').onclick = function () { tf = 5; $('tf5').classList.add('on'); $('tf15').classList.remove('on'); draw(); };
+  $('tf15').onclick = function () { tf = 15; $('tf15').classList.add('on'); $('tf5').classList.remove('on'); draw(); };
+  ['fTod', 'fSetup', 'fTk', 'fYr', 'fSeen'].forEach(function (id) { $(id).onchange = next; });
+  window.addEventListener('resize', draw);
+  document.addEventListener('keydown', function (e) { if (stage !== 'replay') return; if (e.key === 'ArrowRight') advance(e.shiftKey ? 15 : 5); });
+  if (!T.length) { $('head').innerHTML = '<span class="bad">Could not load data/trades.js. Keep index.html next to its data folder.</span>'; }
+  else next();
+  window.__trainer = { get cur() { return cur; }, get series() { return series; }, answer: answer, advance: advance, next: next, sell: sell };
+})();
+</script>
+</body>
+</html>
