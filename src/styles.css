@@ -100,3 +100,8 @@ textarea { width:100%; min-height:60px; resize:vertical; margin-top:6px; }
   #history { padding:8px; }
   .hidemob { display:none; }
 }
+@media (max-width:380px) {
+  /* keep the header stats on one line on the narrowest phones (iPhone SE) */
+  #stats { flex-wrap:nowrap; white-space:nowrap; font-size:10px; }
+  #stats b { font-size:12px; margin-right:2px; }
+}

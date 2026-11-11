@@ -148,8 +148,8 @@ grp([o for o in B if (o['r']=='C')==(o['bd'][0]>o['bd'][1])],'with daily side')
 grp([o for o in B if (o['r']=='C')!=(o['bd'][0]>o['bd'][1])],'against daily side')
 
 json_dump=lambda o: json.dumps(o,separators=(',',':'))
-open('bear-trainer/data/trades.js','w',encoding='utf-8').write('window.BEAR_TRADES='+json_dump(out)+';')
-print('trades',len(out),round(os.path.getsize('bear-trainer/data/trades.js')/1e6,1),'MB', 'with img',sum(1 for o in out if o['img']))
+open('bear-trainer/public/data/trades.js','w',encoding='utf-8').write('window.BEAR_TRADES='+json_dump(out)+';')
+print('trades',len(out),round(os.path.getsize('bear-trainer/public/data/trades.js')/1e6,1),'MB', 'with img',sum(1 for o in out if o['img']))
 # 5-min bars per chart instrument per year (only days needed)
 missing=collections.Counter()
 for inst,days in need.items():
@@ -175,7 +175,7 @@ for inst,days in need.items():
     for yr,A in agg.items():
         ks=sorted(A); div=100 if inst=='USATECHIDXUSD' else 10   # store price*10 (NDX) or *100
         obj={'t':ks,'o':[A[k][0]//div for k in ks],'h':[A[k][1]//div for k in ks],'l':[A[k][2]//div for k in ks],'c':[A[k][3]//div for k in ks],'scale':1000//div}
-        fn=f'bear-trainer/data/bars_{LABEL[inst]}_{yr}.js'
+        fn=f'bear-trainer/public/data/bars_{LABEL[inst]}_{yr}.js'
         open(fn,'w').write(f'(window.BEAR_BARS=window.BEAR_BARS||{{}})["{LABEL[inst]}_{yr}"]='+json_dump(obj)+';')
         print(fn,len(ks),round(os.path.getsize(fn)/1e6,2),'MB')
 print('missing weekdays',dict(missing))
