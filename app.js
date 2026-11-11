@@ -321,7 +321,10 @@
     if (r15) {
       if (r15[0] < r15[3]) L.push('The 15m RSI was <b>below its lower band</b>, which he reads as a temporary bottom. ' + (cur.r === 'C' ? 'He bought calls into it, a band fade.' : 'He still took puts, so he saw continuation.'));
       else if (r15[0] > r15[2]) L.push('The 15m RSI was <b>above its upper band</b>, which he reads as a temporary top. ' + (cur.r === 'P' ? 'He bought puts into it, a band fade.' : 'He still took calls, so he saw continuation.'));
-      else L.push('The 15m RSI was ' + (r15[0] >= r15[1] ? 'above' : 'below') + ' its median and inside the bands. ' + ((r15[0] < r15[1]) === (cur.r === 'C') ? 'He bought the pullback toward the median.' : 'He traded in the direction of the 15m.'));
+      else {
+        var below = r15[0] < r15[1], fade = below === (cur.r === 'C');
+        L.push('The 15m RSI was ' + (below ? 'below' : 'above') + ' its median and inside the bands. ' + (fade ? (cur.r === 'C' ? 'He bought the dip, expecting RSI to reclaim the median.' : 'He shorted the pop, expecting RSI to lose the median.') : 'He traded in the direction of the 15m.'));
+      }
     }
     if (sizeable(cur)) L.push(cur.setup === 'Daytrade' ? 'He labelled this a <b>Daytrade</b>: all confluences present, full size.' : 'He labelled this a <b>Lotto</b>: only one or two confluences, small size.');
     L.push('<span class="small">Look for the pattern (wedge, channel, flag, double top/bottom, trendline) and the key level in his chart below. That\'s what the RSI alone can\'t show.</span>');
