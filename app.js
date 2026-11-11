@@ -235,7 +235,7 @@
     show(['aGuess'], false); show(['aReplay', 'tradeBox'], true);
     revealHead();
     $('timeline').innerHTML = ''; $('sold').textContent = ''; $('bSell').disabled = false;
-    shown = 0; render(); stats();
+    shown = 0; hiddenMsgs = []; render(); stats();
   }
   function revealHead() {
     var side = cur.r === 'C' ? 'calls' : 'puts';
@@ -246,29 +246,53 @@
       (cur.note ? '<div class="small" style="margin-top:6px;white-space:pre-line">His note: “' + esc(cur.note) + '”</div>' : '');
   }
   function flash(el) { el.style.transition = 'background .2s'; el.style.background = 'rgba(230,180,80,.25)'; setTimeout(function () { el.style.background = ''; }, 500); }
-  var shown = 0, hiddenMsgs = 0;
+  var shown = 0, hiddenMsgs = [];
+  // Bear's chat is logged per day. Keep this trade's trims/updates, plus his other
+  // messages while the trade is live: up to 45 min after entry, or 20 min after his
+  // last trim/update on this ticker, whichever is later.
+  function cutoff() {
+    var last = 0; cur.ev.forEach(function (e) { if ((e.k === 'trim' || e.k === 'update') && relevant(e)) last = Math.max(last, e.m); });
+    return Math.max(45, last + 20);
+  }
+  function evRow(e, off) {
+    var d = document.createElement('div'), tm = fmtET.format(new Date((cur.t + e.m * 60) * 1000));
+    var label = e.k === 'trim' ? '<b class="good">Bear trims' + (e.p != null ? ' at ' + pct(e.p) : '') + '</b>' : e.k === 'update' ? '<b>Bear update' + (e.p != null ? ': ' + pct(e.p) : '') + '</b>' : '<span class="dim">Bear:</span>';
+    d.innerHTML = '<span class="tm">' + tm + '</span>' + label + (e.x ? ' ' + esc(e.x) : ''); if (off) d.className = 'off';
+    return d;
+  }
   function render() {
     var price = optAt(step), p = (price / cur.e - 1) * 100;
     $('pnl').innerHTML = '$' + price.toFixed(2) + ' <span class="' + cls(p) + '">' + pct(p) + '</span> <span class="small">' + step + ' min in</span>';
     var evs = cur.ev.filter(function (e) { return e.m <= step; });
+    var cut = cutoff();
     for (; shown < evs.length; shown++) {
       var e = evs[shown];
-      if (!relevant(e)) { hiddenMsgs++; continue; }
-      var d = document.createElement('div'), tm = fmtET.format(new Date((cur.t + e.m * 60) * 1000));
-      var label = e.k === 'trim' ? '<b class="good">Bear trims' + (e.p != null ? ' at ' + pct(e.p) : '') + '</b>' : e.k === 'update' ? '<b>Bear update' + (e.p != null ? ': ' + pct(e.p) : '') + '</b>' : '<span class="dim">Bear:</span>';
-      d.innerHTML = '<span class="tm">' + tm + '</span>' + label + (e.x ? ' ' + esc(e.x) : '');
-      $('timeline').prepend(d);
+      if (!relevant(e) || (e.k === 'note' && e.m > cut)) { hiddenMsgs.push(e); continue; }
+      $('timeline').prepend(evRow(e));
     }
     var end = step >= maxStep();
     ['s1', 's5', 's15', 'sEnd'].forEach(function (id) { $(id).disabled = end; });
     draw();
     if (end) finish();
   }
-  function advance(n) { if (stage !== 'replay') return; step = Math.min(maxStep(), step + n); render(); }
-  function sell() {
-    if (userExit || stage !== 'replay') return; var price = optAt(step); userExit = { m: step, p: (price / cur.e - 1) * 100 };
-    store.a[cur.id].exit = userExit.p; store.a[cur.id].exitM = step; save();
-    $('bSell').disabled = true; $('sold').innerHTML = 'You sold at <b class="' + cls(userExit.p) + '">' + pct(userExit.p) + '</b>. Keep stepping to see what happened next.'; draw(); stats();
+  function plan() { return { t: +$('pT').value, s: +$('pS').value }; }
+  function advance(n) {
+    if (stage !== 'replay') return;
+    var target = Math.min(maxStep(), step + n), pl = plan();
+    if (!userExit && !review && (pl.t || pl.s)) {
+      for (var i = 0; i < cur.path.length; i++) {
+        var m = cur.path[i][0]; if (m <= step) continue; if (m > target) break;
+        var r = (cur.path[i][1] / 100 / cur.e - 1) * 100;
+        if ((pl.t && r >= pl.t) || (pl.s && r <= -pl.s)) { step = m; render(); sell(r >= 0 ? 'target' : 'stop'); return; }
+      }
+    }
+    step = target; render();
+  }
+  function sell(why) {
+    if (userExit || stage !== 'replay') return; var price = optAt(step); userExit = { m: step, p: (price / cur.e - 1) * 100, why: why || 'manual' };
+    store.a[cur.id].exit = userExit.p; store.a[cur.id].exitM = step; store.a[cur.id].exitWhy = userExit.why; save();
+    $('bSell').disabled = true;
+    $('sold').innerHTML = (why === 'target' ? 'Target hit: auto-sold' : why === 'stop' ? 'Stop hit: auto-sold' : 'You sold') + ' at <b class="' + cls(userExit.p) + '">' + pct(userExit.p) + '</b> after ' + step + ' min. Keep stepping to see what happened next.'; draw(); stats();
   }
   // Bear's management, roughly: first trim around +23%, then stop to break-even on the rest.
   function bearStyle() {
@@ -295,7 +319,7 @@
       ['Best the option reached (model)', '<span class="' + cls(cur.mx) + '">' + pct(cur.mx) + '</span> after ' + cur.mxm + ' min'],
       ['Option at the close (model)', '<span class="' + cls(closeP) + '">' + pct(closeP) + '</span>'],
       ['Bear-style exit', '<span class="' + cls(bs.r) + '">' + pct(bs.r) + '</span><div class="small" style="font-weight:400">' + bs.txt + '</div>'],
-      ['Your exit', mine ? '<span class="' + cls(mine.p) + '">' + pct(mine.p) + '</span>' + (mine.m != null ? ' after ' + mine.m + ' min' : '') : 'Held to the close <span class="' + cls(closeP) + '">' + pct(closeP) + '</span>']
+      ['Your exit', mine ? '<span class="' + cls(mine.p) + '">' + pct(mine.p) + '</span>' + (mine.m != null ? ' after ' + mine.m + ' min' : '') + ((mine.why || a.exitWhy) === 'target' ? ' <span class="small">(target)</span>' : (mine.why || a.exitWhy) === 'stop' ? ' <span class="small">(stop)</span>' : '') : 'Held to the close <span class="' + cls(closeP) + '">' + pct(closeP) + '</span>']
     );
     if (trims.length && Math.max.apply(null, trims) > cur.mx + 10) rows.push(['<span class="warn">Note</span>', '<span class="warn" style="font-weight:400">The price model never reached his posted trim. Trust his post over the model here.</span>']);
     $('sumTable').innerHTML = rows.map(function (r) { return '<tr><td class="dim">' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('');
@@ -307,8 +331,13 @@
     $('note').value = a.note || '';
     renderLesson(); showImg();
     show(['aReplay'], false); show(['aDone', 'doneBox'], true);
-    if (hiddenMsgs) $('timeline').insertAdjacentHTML('beforeend', '<div class="small">' + hiddenMsgs + ' of Bear\'s messages about other tickers that day are hidden.</div>');
-    hiddenMsgs = 0; stats();
+    if (hiddenMsgs.length) {
+      var hid = hiddenMsgs, more = document.createElement('div'); more.className = 'more small';
+      more.textContent = 'Show ' + hid.length + ' more of Bear\'s messages that day (other tickers, or after this trade)';
+      more.onclick = function () { more.remove(); var tl = $('timeline'); tl.innerHTML = ''; cur.ev.forEach(function (e) { tl.prepend(evRow(e, hid.indexOf(e) >= 0)); }); };
+      $('timeline').appendChild(more);
+    }
+    hiddenMsgs = []; stats();
   }
   function renderLesson() {
     var L = [], r15 = rsiAtEntry(15), withBias = cur.b4 ? ((cur.b4[0] >= cur.b4[1]) === (cur.r === 'C')) : null;
@@ -342,9 +371,9 @@
     var t = BY_ID[id], a = store.a[id]; if (!t || !a) return;
     closeHistory(); review = true; loadTrade(t);
     guess = a.g; size = a.size || null; stage = 'replay';
-    if (typeof a.exitM === 'number') userExit = { m: a.exitM, p: a.exit };
+    if (typeof a.exitM === 'number') userExit = { m: a.exitM, p: a.exit, why: a.exitWhy };
     show(['aGuess'], false); show(['tradeBox'], true); revealHead();
-    $('timeline').innerHTML = ''; shown = 0; hiddenMsgs = 0; step = maxStep(); render();
+    $('timeline').innerHTML = ''; shown = 0; hiddenMsgs = []; step = maxStep(); render();
     window.scrollTo(0, 0);
   }
 
@@ -474,7 +503,9 @@
   $('bLotto').onclick = function () { pickSize('Lotto'); };
   $('bSkip').onclick = next; $('bNext').onclick = next;
   $('s1').onclick = function () { advance(1); }; $('s5').onclick = function () { advance(5); }; $('s15').onclick = function () { advance(15); }; $('sEnd').onclick = function () { advance(99999); };
-  $('bSell').onclick = sell;
+  $('bSell').onclick = function () { sell('manual'); };
+  if (store.plan) { $('pT').value = String(store.plan.t); $('pS').value = String(store.plan.s); }
+  $('pT').onchange = $('pS').onchange = function () { store.plan = plan(); save(); this.blur(); };
   $('tf5').onclick = function () { tf = 5; hover = null; $('tf5').classList.add('on'); $('tf15').classList.remove('on'); draw(); };
   $('tf15').onclick = function () { tf = 15; hover = null; $('tf15').classList.add('on'); $('tf5').classList.remove('on'); draw(); };
   $('filterToggle').onclick = function () { $('filters').classList.toggle('open'); };
@@ -504,7 +535,7 @@
     if (k === 'h') { $('history').classList.contains('hidden') ? openHistory() : closeHistory(); return; }
     if (!$('history').classList.contains('hidden')) return;
     if (stage === 'guess') { if (k === 'c') answer('C'); else if (k === 'p') answer('P'); else if (k === 'd') pickSize('Daytrade'); else if (k === 'l') pickSize('Lotto'); else if (k === 'k') next(); else return; }
-    else if (stage === 'replay') { if (e.key === 'ArrowRight') advance(e.shiftKey ? 15 : 5); else if (k === 's') sell(); else if (k === 'e') advance(99999); else return; }
+    else if (stage === 'replay') { if (e.key === 'ArrowRight') advance(e.shiftKey ? 15 : 5); else if (k === 's') sell('manual'); else if (k === 'e') advance(99999); else return; }
     else if (stage === 'done') { if (k === 'enter' || k === 'n' || k === ' ') next(); else return; }
     e.preventDefault();
   });

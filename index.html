@@ -47,6 +47,10 @@
       <div id="aReplay" class="hidden">
         <div id="verdict"></div>
         <div id="pnl"></div>
+        <div class="row plan">Auto-sell at
+          <select id="pT" aria-label="Profit target"><option value="0">no target</option><option value="20">+20%</option><option value="23">+23%</option><option value="30">+30%</option><option value="50">+50%</option><option value="100">+100%</option></select>
+          or <select id="pS" aria-label="Stop loss"><option value="0">no stop</option><option value="20">−20%</option><option value="30">−30%</option><option value="40">−40%</option><option value="50">−50%</option></select>
+        </div>
         <div class="row">
           <button id="s1">+1m</button><button id="s5" class="primary">+5m<kbd>→</kbd></button><button id="s15">+15m</button><button id="sEnd">Close<kbd>E</kbd></button><button id="bSell">Sell<kbd>S</kbd></button>
         </div>
