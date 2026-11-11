@@ -25,6 +25,6 @@ Pushing to `main` runs the tests, builds, and publishes to GitHub Pages (`.githu
 
 ## 1-minute chart
 
-The replay can show 1-minute bars for timing exits. They aren't in the repo yet: run `build_data.py` on the machine with the raw Dukascopy files. Its last step, `export_m1`, writes `public/data/m1_<instrument>_<year>.js` (trade days, 8:30–16:00 ET) and `public/data/m1_index.js`. Commit and push those, and the **1 min** button appears for trades that have data.
+The replay can show 1-minute bars for timing exits. Export them on the machine with the raw Dukascopy files (the repo folder should sit next to `bear-backtest/` and the `bear-ideas_*.csv` files, or pass `--raw <folder>`): `python build_data.py --m1-only`. On Windows you may first need `pip install tzdata`. It writes `public/data/m1_<instrument>_<year>.js` (trade days, 8:30–16:00 ET) and `public/data/m1_index.js`. Commit and push those, and the **1 min** button appears for trades that have data.
 
 Bear's chart screenshots are never published with the site. Users load them from their device or a private GitHub repo, and they're cached in the browser.

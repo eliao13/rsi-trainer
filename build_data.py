@@ -1,8 +1,26 @@
-import csv,zipfile,lzma,struct,math,os,json,collections,glob
+"""Builds the trainer's data files in public/data from the raw exports.
+
+Usage (from anywhere):
+    python build_data.py              # rebuild everything (trades, 5-min bars, 1-min bars)
+    python build_data.py --m1-only    # only export 1-minute bars for the existing trades
+    python build_data.py --raw PATH   # folder holding bear-backtest/ and the bear-ideas_*.csv files
+                                      # (default: the folder that contains this repo)
+"""
+import csv,zipfile,lzma,struct,math,os,sys,json,collections,glob
 from datetime import datetime,date,timedelta,timezone
-from zoneinfo import ZoneInfo
-NY=ZoneInfo('America/New_York'); UTC=timezone.utc
-os.chdir(os.path.expanduser('~/mnt/Downloads'))
+try:
+    from zoneinfo import ZoneInfo
+    NY=ZoneInfo('America/New_York')
+except Exception:
+    sys.exit('Time zone data is missing. On Windows run:  pip install tzdata')
+UTC=timezone.utc
+HERE=os.path.dirname(os.path.abspath(__file__))
+DATA_DIR=os.path.join(HERE,'public','data')
+RAW_DIR=sys.argv[sys.argv.index('--raw')+1] if '--raw' in sys.argv else os.path.dirname(HERE)
+if not os.path.isdir(os.path.join(RAW_DIR,'bear-backtest','raw')):
+    sys.exit(f"Can't find bear-backtest/raw in {RAW_DIR}. Put this repo next to it, or pass --raw <folder>.")
+os.chdir(RAW_DIR)
+json_dump=lambda o: json.dumps(o,separators=(',',':'))
 OPT={'QQQ':'QQQUSUSD','SPY':'SPYUSUSD','SPX':'USA500IDXUSD','IWM':'IWMUSUSD'}
 CHART={'QQQ':'USATECHIDXUSD','SPY':'USA500IDXUSD','SPX':'USA500IDXUSD','IWM':'IWMUSUSD'}
 LABEL={'USATECHIDXUSD':'NDQ100','USA500IDXUSD':'SPX500','IWMUSUSD':'IWM'}
@@ -29,6 +47,43 @@ def session(inst,d):
         out=[((t-s0)//60,o/1000,h/1000,l/1000,c/1000) for t,o,c,l,h,v in rec if 0<=(t-s0)//60<390 and v>0]
         if len(out)<200: out=None
     _s[k]=out; return out
+# ---------- 1-minute bars for the replay's 1-minute chart ----------
+# Only trade days, 8:30-16:00 New York, per chart instrument and year. Minute indexes are unix
+# minutes, delta-encoded (mostly 1s) to keep the files small. data/m1_index.js lists what exists.
+def export_m1(trades, out_dir=DATA_DIR):
+    days=collections.defaultdict(set)
+    for o in trades: days[CHART[o['tk']]].add(date.fromisoformat(o['d']))
+    keys=[]
+    for inst,ds in sorted(days.items()):
+        div=100 if inst=='USATECHIDXUSD' else 10
+        per=collections.defaultdict(lambda:{'t':[],'o':[],'h':[],'l':[],'c':[]})
+        for d in sorted(ds):
+            rec=day_raw(inst,d)
+            if not rec: continue
+            base=int(datetime(d.year,d.month,d.day,tzinfo=UTC).timestamp())
+            lo=int(datetime(d.year,d.month,d.day,8,30,tzinfo=NY).timestamp())//60
+            hi=int(datetime(d.year,d.month,d.day,16,0,tzinfo=NY).timestamp())//60
+            P=per[d.year]
+            for tt,o,c,l,h,v in rec:
+                mn=(base+tt)//60
+                if v<=0 or not (lo<=mn<hi): continue
+                P['t'].append(mn); P['o'].append(o//div); P['h'].append(h//div); P['l'].append(l//div); P['c'].append(c//div)
+        for yr,P in sorted(per.items()):
+            ts=P['t']
+            if not ts: continue
+            obj={'dt':[ts[0]]+[b-a for a,b in zip(ts,ts[1:])],'o':P['o'],'h':P['h'],'l':P['l'],'c':P['c'],'scale':1000//div}
+            key=f'{LABEL[inst]}_{yr}'; fn=os.path.join(out_dir,f'm1_{key}.js')
+            open(fn,'w',encoding='utf-8').write(f'(window.BEAR_M1=window.BEAR_M1||{{}})["{key}"]='+json_dump(obj)+';')
+            keys.append(key); print(fn,len(ts),'bars',round(os.path.getsize(fn)/1e6,2),'MB')
+    open(os.path.join(out_dir,'m1_index.js'),'w',encoding='utf-8').write('window.BEAR_M1_KEYS='+json_dump(sorted(keys))+';')
+
+if '--m1-only' in sys.argv:
+    if not os.path.isfile(os.path.join(DATA_DIR,'trades.js')):
+        sys.exit(f"No trades file at {DATA_DIR}. Run without --m1-only first (or git pull this repo).")
+    src=open(os.path.join(DATA_DIR,'trades.js'),encoding='utf-8').read()
+    export_m1(json.loads(src[src.index('['):src.rindex(']')+1]))
+    sys.exit(0)
+
 def ncdf(x): return 0.5*(1+math.erf(x/math.sqrt(2)))
 def bs(S,K,T,sig,right):
     if T<=0 or sig<=0: return max(0.0,(S-K) if right=='C' else (K-S))
@@ -147,9 +202,8 @@ B=[o for o in out if o['bd']]
 grp([o for o in B if (o['r']=='C')==(o['bd'][0]>o['bd'][1])],'with daily side')
 grp([o for o in B if (o['r']=='C')!=(o['bd'][0]>o['bd'][1])],'against daily side')
 
-json_dump=lambda o: json.dumps(o,separators=(',',':'))
-open('bear-trainer/public/data/trades.js','w',encoding='utf-8').write('window.BEAR_TRADES='+json_dump(out)+';')
-print('trades',len(out),round(os.path.getsize('bear-trainer/public/data/trades.js')/1e6,1),'MB', 'with img',sum(1 for o in out if o['img']))
+open(os.path.join(DATA_DIR,'trades.js'),'w',encoding='utf-8').write('window.BEAR_TRADES='+json_dump(out)+';')
+print('trades',len(out),round(os.path.getsize(os.path.join(DATA_DIR,'trades.js'))/1e6,1),'MB', 'with img',sum(1 for o in out if o['img']))
 # 5-min bars per chart instrument per year (only days needed)
 missing=collections.Counter()
 for inst,days in need.items():
@@ -175,40 +229,10 @@ for inst,days in need.items():
     for yr,A in agg.items():
         ks=sorted(A); div=100 if inst=='USATECHIDXUSD' else 10   # store price*10 (NDX) or *100
         obj={'t':ks,'o':[A[k][0]//div for k in ks],'h':[A[k][1]//div for k in ks],'l':[A[k][2]//div for k in ks],'c':[A[k][3]//div for k in ks],'scale':1000//div}
-        fn=f'bear-trainer/public/data/bars_{LABEL[inst]}_{yr}.js'
-        open(fn,'w').write(f'(window.BEAR_BARS=window.BEAR_BARS||{{}})["{LABEL[inst]}_{yr}"]='+json_dump(obj)+';')
+        fn=os.path.join(DATA_DIR,f'bars_{LABEL[inst]}_{yr}.js')
+        open(fn,'w',encoding='utf-8').write(f'(window.BEAR_BARS=window.BEAR_BARS||{{}})["{LABEL[inst]}_{yr}"]='+json_dump(obj)+';')
         print(fn,len(ks),round(os.path.getsize(fn)/1e6,2),'MB')
 print('missing weekdays',dict(missing))
 
-# ---------- 1-minute bars for the replay's 1-minute chart ----------
-# Only trade days, 8:30-16:00 New York, per chart instrument and year. Minute indexes are unix
-# minutes, delta-encoded (mostly 1s) to keep the files small. data/m1_index.js lists what exists.
-def export_m1(trades, out_dir='bear-trainer/public/data'):
-    days=collections.defaultdict(set)
-    for o in trades: days[CHART[o['tk']]].add(date.fromisoformat(o['d']))
-    keys=[]
-    for inst,ds in sorted(days.items()):
-        div=100 if inst=='USATECHIDXUSD' else 10
-        per=collections.defaultdict(lambda:{'t':[],'o':[],'h':[],'l':[],'c':[]})
-        for d in sorted(ds):
-            rec=day_raw(inst,d)
-            if not rec: continue
-            base=int(datetime(d.year,d.month,d.day,tzinfo=UTC).timestamp())
-            lo=int(datetime(d.year,d.month,d.day,8,30,tzinfo=NY).timestamp())//60
-            hi=int(datetime(d.year,d.month,d.day,16,0,tzinfo=NY).timestamp())//60
-            P=per[d.year]
-            for tt,o,c,l,h,v in rec:
-                mn=(base+tt)//60
-                if v<=0 or not (lo<=mn<hi): continue
-                P['t'].append(mn); P['o'].append(o//div); P['h'].append(h//div); P['l'].append(l//div); P['c'].append(c//div)
-        for yr,P in sorted(per.items()):
-            ts=P['t']
-            if not ts: continue
-            obj={'dt':[ts[0]]+[b-a for a,b in zip(ts,ts[1:])],'o':P['o'],'h':P['h'],'l':P['l'],'c':P['c'],'scale':1000//div}
-            key=f'{LABEL[inst]}_{yr}'; fn=f'{out_dir}/m1_{key}.js'
-            open(fn,'w').write(f'(window.BEAR_M1=window.BEAR_M1||{{}})["{key}"]='+json_dump(obj)+';')
-            keys.append(key); print(fn,len(ts),'bars',round(os.path.getsize(fn)/1e6,2),'MB')
-    open(f'{out_dir}/m1_index.js','w').write('window.BEAR_M1_KEYS='+json_dump(sorted(keys))+';')
-
-if __name__=='__main__':
-    export_m1(out)
+# full run: finish with the 1-minute export
+export_m1(out)
