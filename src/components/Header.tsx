@@ -41,9 +41,9 @@ function Stats({ answers }: { answers: Record<string, Answer> }) {
   return (
     <div id="stats">
       <div><b>{n}</b>done</div>
-      <div><b>{n ? Math.round((same / n) * 100) + '%' : '–'}</b>same side</div>
-      <div><b>{sz ? Math.round((szOk / sz) * 100) + '%' : '–'}</b>size right</div>
-      <div><b className={avg === null ? '' : tone(avg)}>{avg === null ? '–' : pct(avg)}</b>avg exit</div>
+      <div><b>{n ? Math.round((same / n) * 100) + '%' : '–'}</b><span className="long">same side</span><span className="short">side</span></div>
+      <div><b>{sz ? Math.round((szOk / sz) * 100) + '%' : '–'}</b><span className="long">size right</span><span className="short">size</span></div>
+      <div><b className={avg === null ? '' : tone(avg)}>{avg === null ? '–' : pct(avg)}</b><span className="long">avg exit</span><span className="short">exit</span></div>
     </div>
   );
 }

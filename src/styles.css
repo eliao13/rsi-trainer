@@ -20,6 +20,7 @@ kbd { font:11px ui-monospace,monospace; color:var(--dim); border:1px solid var(-
 button.primary kbd { color:rgba(255,255,255,.85); border-color:rgba(255,255,255,.5); }
 #stats { margin-left:auto; display:flex; gap:16px; font-size:12px; color:var(--dim); }
 #stats b { display:block; font-size:16px; color:var(--text); }
+#stats .short { display:none; }
 #filterToggle { display:none; }
 main { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:16px; padding:16px 20px; max-width:1500px; margin:0 auto; }
 aside > .box { margin-bottom:12px; }
@@ -108,5 +109,7 @@ aside, section.box { min-width:0; }
 @media (max-width:380px) {
   /* keep the header stats on one line on the narrowest phones (iPhone SE) */
   #stats { flex-wrap:nowrap; white-space:nowrap; font-size:10px; }
+  #stats .long { display:none; }
+  #stats .short { display:inline; }
   #stats b { font-size:12px; margin-right:2px; }
 }
