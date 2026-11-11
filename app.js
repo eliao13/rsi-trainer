@@ -189,14 +189,32 @@
   function show(ids, on) { ids.forEach(function (id) { $(id).classList.toggle('hidden', !on); }); }
 
   // Bear's messages are logged per day; hide the ones clearly about a different ticker.
-  var FAM = { QQQ: ['QQQ', 'NQ', 'NDX', 'NAS', 'NASDAQ', 'TQQQ', 'SQQQ'], SPY: ['SPY', 'SPX', 'ES', 'SPX500'], SPX: ['SPX', 'SPY', 'ES', 'SPX500'], IWM: ['IWM', 'RTY', 'RUT'] };
-  var TICK_RE = /\b(QQQ|TQQQ|SQQQ|SPY|SPX|IWM|NQ|ES|NDX|RTY|RUT|NVDA|TSLA|AAPL|AMD|META|MSFT|AMZN|GOOGL?|NFLX|COIN|DIA|UVXY|VIX|VXX|TLT|GLD|SLV|BTC|ETH|SMCI|AVGO|PLTR|MSTR|BA|DJT|ARM|MU)\b/g;
-  function relevant(e) {
-    if (!e.x) return true;
-    var m = String(e.x).toUpperCase().match(TICK_RE); if (!m) return true;
-    var fam = FAM[cur.tk] || [cur.tk];
-    return m.some(function (k) { return fam.indexOf(k) >= 0; });
+  // Bear's own shorthand and shouting: all-caps words that are not tickers.
+  var JARGON = ('SL BE PA PT TP RSI GG LOL LMAO WTF OMG OMFG ATH ATL EOD HOD LOD DB DT TL TLS FOMC CPI PPI NFP FED ET AM PM US OK IV EMA SMA VWAP TRAMA MA BB DTE ODTE OTM ITM ATM YOLO IMO TBH BTW PNL PL LFG GM GN NY UK EU AI CEO IPO EPS ER SEC OPEX PCE GDP JOLTS ISM ADP PMI FOMO HUGE BIG NEW ALL OUT IN UP DOWN NOT NO YES WOW BOOM CLOSE CLOSING OPEN HOLD SELL BUY ADD ADDED DONE GREEN RED HEDGE CALLS PUTS CALL PUT CONS PROFIT TRIM TRIMS LONG LONGS SHORT SHORTS AND THE FOR YOU ME MY WE IT IS ON AT TO OF THIS THAT WHAT WHO WHY HOW OR SO BUT IF GO ARE WAS HAS HAD BE AS BY AN AVG LETS LET GOOD GREAT NICE LIVE NOW HERE WAIT STOP PLEASE TAKE TAKING PAID PAY OFF ONE TWO MOVE MOVES RUN RUNNER RUNNERS NEXT LAST DAY WEEK MON TUE WED THU FRI JAN FEB MAR APR MAY JUN JUL AUG SEP SEPT OCT NOV DEC HIT AH PIPS HALF LOTTO SWING DAYTRADE ALERT NEWS DATA KEY LEVEL BREAK SUPPORT SCALP TOP HIGH LOW HIGHS LOWS LADIES JPOW USD EST PST UTC FAQ TA DD VS AKA ASAP DM DMS NFA FYI II III IV').split(' ');
+  // tickers he often trades besides the indexes; checked even when he's shouting
+  var OTHER = 'NVDA TSLA AAPL AMD META MSFT AMZN GOOG GOOGL NFLX COIN DIA UVXY VIX VXX TLT GLD SLV BTC ETH SMCI AVGO PLTR MSTR DJT ARM MU DOCU RDDT TRMD XOM KTOS BABA HOOD SOFI NIO RIVN LCID CVNA SHOP UBER ROKU SNOW CRWD PANW ORCL INTC QCOM TSM ASML'.split(' ');
+  var FAM = { QQQ: ['QQQ', 'NQ', 'NDX', 'NAS', 'NASDAQ', 'TQQQ', 'SQQQ', 'NDQ', 'TECH'], SPY: ['SPY', 'SPX', 'ES', 'SPX500', 'SPXW'], SPX: ['SPX', 'SPY', 'ES', 'SPX500', 'SPXW'], IWM: ['IWM', 'RTY', 'RUT', 'US2000'] };
+  // Hide a message when it names another ticker ($TICK or an all-caps word that isn't
+  // jargon) or an option strike far from this trade's, and never names this ticker.
+  function relevantFor(t, e) {
+    if (!e.x || e.k === 'trim' || e.k === 'update') return true; // his alerts for this trade
+    var x = String(e.x), fam = FAM[t.tk] || [t.tk], up = x.toUpperCase(), i;
+    var words = up.match(/\b[A-Z0-9]{2,7}\b/g) || [];
+    for (i = 0; i < words.length; i++) if (fam.indexOf(words[i]) >= 0) return true;
+    for (i = 0; i < words.length; i++) if (OTHER.indexOf(words[i]) >= 0) return false;
+    var letters = x.replace(/[^A-Za-z]/g, ''), caps = x.replace(/[^A-Z]/g, '').length, shouting = letters.length > 0 && caps / letters.length > 0.6;
+    var dollar = x.match(/\$([A-Za-z]{1,5})\b/g) || [];
+    if (dollar.some(function (d) { return fam.indexOf(d.slice(1).toUpperCase()) < 0; })) return false;
+    if (!shouting) {
+      var caps2 = x.match(/\b[A-Z]{2,5}\b/g) || [];
+      if (caps2.some(function (w) { return JARGON.indexOf(w) < 0 && fam.indexOf(w) < 0; })) return false;
+    }
+    var strikes = [], re = /\b(\d{2,5}(?:\.\d+)?)\s?(C|P|[Cc]alls?|[Pp]uts?|CALLS?|PUTS?)\b/g, m; // "16c" = cents, not a strike
+    while ((m = re.exec(x))) if (+m[1] >= 20) strikes.push(+m[1]);
+    if (strikes.length && !strikes.some(function (k) { return Math.abs(k - t.k) / t.k < 0.04; })) return false;
+    return true;
   }
+  function relevant(e) { return relevantFor(cur, e); }
 
   function loadTrade(t) {
     cur = t; userExit = null; guess = null; size = null; step = 0; stage = 'guess'; hover = null; series = null;
@@ -262,7 +280,8 @@
   }
   function render() {
     var price = optAt(step), p = (price / cur.e - 1) * 100;
-    $('pnl').innerHTML = '$' + price.toFixed(2) + ' <span class="' + cls(p) + '">' + pct(p) + '</span> <span class="small">' + step + ' min in</span>';
+    var bearSide = cur.r === 'C' ? 'calls' : 'puts';
+    $('pnl').innerHTML = (guess && guess !== cur.r ? '<span class="small">Bear\'s ' + bearSide + ' (you picked ' + (guess === 'C' ? 'calls' : 'puts') + ')</span><br>' : '') + '$' + price.toFixed(2) + ' <span class="' + cls(p) + '">' + pct(p) + '</span> <span class="small">' + step + ' min in</span>';
     var evs = cur.ev.filter(function (e) { return e.m <= step; });
     var cut = cutoff();
     for (; shown < evs.length; shown++) {
@@ -292,7 +311,7 @@
     if (userExit || stage !== 'replay') return; var price = optAt(step); userExit = { m: step, p: (price / cur.e - 1) * 100, why: why || 'manual' };
     store.a[cur.id].exit = userExit.p; store.a[cur.id].exitM = step; store.a[cur.id].exitWhy = userExit.why; save();
     $('bSell').disabled = true;
-    $('sold').innerHTML = (why === 'target' ? 'Target hit: auto-sold' : why === 'stop' ? 'Stop hit: auto-sold' : 'You sold') + ' at <b class="' + cls(userExit.p) + '">' + pct(userExit.p) + '</b> after ' + step + ' min. Keep stepping to see what happened next.'; draw(); stats();
+    $('sold').innerHTML = (why === 'target' ? 'Target hit: auto-sold' : why === 'stop' ? 'Stop hit: auto-sold' : 'You sold') + ' at <b class="' + cls(userExit.p) + '">' + pct(userExit.p) + '</b> after ' + step + ' min' + (guess !== cur.r ? ' (Bear\'s side, so it doesn\'t count toward your average)' : '') + '. Keep stepping to see what happened next.'; draw(); stats();
   }
   // Bear's management, roughly: first trim around +23%, then stop to break-even on the rest.
   function bearStyle() {
@@ -319,7 +338,7 @@
       ['Best the option reached (model)', '<span class="' + cls(cur.mx) + '">' + pct(cur.mx) + '</span> after ' + cur.mxm + ' min'],
       ['Option at the close (model)', '<span class="' + cls(closeP) + '">' + pct(closeP) + '</span>'],
       ['Bear-style exit', '<span class="' + cls(bs.r) + '">' + pct(bs.r) + '</span><div class="small" style="font-weight:400">' + bs.txt + '</div>'],
-      ['Your exit', mine ? '<span class="' + cls(mine.p) + '">' + pct(mine.p) + '</span>' + (mine.m != null ? ' after ' + mine.m + ' min' : '') + ((mine.why || a.exitWhy) === 'target' ? ' <span class="small">(target)</span>' : (mine.why || a.exitWhy) === 'stop' ? ' <span class="small">(stop)</span>' : '') : 'Held to the close <span class="' + cls(closeP) + '">' + pct(closeP) + '</span>']
+      [guess && guess !== cur.r ? 'Your exit on Bear\'s ' + (cur.r === 'C' ? 'calls' : 'puts') + '<div class="small">not counted: you picked the other side</div>' : 'Your exit', mine ? '<span class="' + cls(mine.p) + '">' + pct(mine.p) + '</span>' + (mine.m != null ? ' after ' + mine.m + ' min' : '') + ((mine.why || a.exitWhy) === 'target' ? ' <span class="small">(target)</span>' : (mine.why || a.exitWhy) === 'stop' ? ' <span class="small">(stop)</span>' : '') : 'Held to the close <span class="' + cls(closeP) + '">' + pct(closeP) + '</span>']
     );
     if (trims.length && Math.max.apply(null, trims) > cur.mx + 10) rows.push(['<span class="warn">Note</span>', '<span class="warn" style="font-weight:400">The price model never reached his posted trim. Trust his post over the model here.</span>']);
     $('sumTable').innerHTML = rows.map(function (r) { return '<tr><td class="dim">' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('');
@@ -361,7 +380,7 @@
   }
   function stats() {
     var ids = Object.keys(store.a), n = 0, m = 0, sz = 0, szOk = 0, ex = [];
-    ids.forEach(function (id) { var a = store.a[id]; if (!a.g) return; n++; if (a.match) m++; if (a.sizeOk != null) { sz++; if (a.sizeOk) szOk++; } if (typeof a.exit === 'number') ex.push(a.exit); });
+    ids.forEach(function (id) { var a = store.a[id]; if (!a.g) return; n++; if (a.match) m++; if (a.sizeOk != null) { sz++; if (a.sizeOk) szOk++; } if (a.match && typeof a.exit === 'number') ex.push(a.exit); });
     var avg = ex.length ? ex.reduce(function (s, v) { return s + v; }, 0) / ex.length : null;
     $('stats').innerHTML = '<div><b>' + n + '</b>done</div><div><b>' + (n ? Math.round(m / n * 100) + '%' : '–') + '</b>same side</div><div><b>' + (sz ? Math.round(szOk / sz * 100) + '%' : '–') + '</b>size right</div><div><b class="' + (avg === null ? '' : cls(avg)) + '">' + (avg === null ? '–' : pct(avg)) + '</b>avg exit</div>';
   }
@@ -381,10 +400,10 @@
   function openHistory() {
     var rows = Object.keys(store.a).map(function (id) { return { id: +id, a: store.a[id], t: BY_ID[id] }; }).filter(function (r) { return r.t && r.a.g; });
     rows.sort(function (x, y) { return (y.a.ts || 0) - (x.a.ts || 0) || y.id - x.id; });
-    $('histSummary').innerHTML = rows.length ? '<div class="small">' + rows.length + ' trades played. Your progress is saved in this browser only, so use Export to back it up or move it to another device.</div>' : '<div class="small">No trades yet.</div>';
+    $('histSummary').innerHTML = rows.length ? '<div class="small">' + rows.length + ' trades played. Average exits count only trades where you picked Bear\'s side (* = not counted). Your progress is saved in this browser only, so use Export to back it up or move it to another device.</div>' : '<div class="small">No trades yet.</div>';
     function group(key, label, fmt) {
       var g = {};
-      rows.forEach(function (r) { var k = key(r); if (!g[k]) g[k] = { n: 0, m: 0, ex: 0, ne: 0 }; g[k].n++; if (r.a.match) g[k].m++; if (typeof r.a.exit === 'number') { g[k].ex += r.a.exit; g[k].ne++; } });
+      rows.forEach(function (r) { var k = key(r); if (!g[k]) g[k] = { n: 0, m: 0, ex: 0, ne: 0 }; g[k].n++; if (r.a.match) g[k].m++; if (r.a.match && typeof r.a.exit === 'number') { g[k].ex += r.a.exit; g[k].ne++; } });
       var ks = Object.keys(g).sort();
       return '<div><table><tr><th>' + label + '</th><th style="text-align:right">n</th><th style="text-align:right">Side</th><th style="text-align:right">Avg exit</th></tr>' + ks.map(function (k) { var v = g[k], av = v.ne ? v.ex / v.ne : null; return '<tr><td>' + esc(fmt ? fmt(k) : k) + '</td><td style="text-align:right;font-weight:400">' + v.n + '</td><td style="text-align:right">' + Math.round(v.m / v.n * 100) + '%</td><td style="text-align:right" class="' + (av == null ? '' : cls(av)) + '">' + (av == null ? '–' : pct(av)) + '</td></tr>'; }).join('') + '</table></div>';
     }
@@ -393,7 +412,7 @@
       group(function (r) { if (!r.t.b4) return 'Unknown'; var w = (r.t.b4[0] >= r.t.b4[1]) === (r.t.r === 'C'); return w ? 'With 4h bias' : 'Against 4h bias'; }, 'Bear vs 4h bias') : '';
     $('histList').innerHTML = rows.map(function (r) {
       var t = r.t, a = r.a, trims = t.ev.filter(function (e) { return e.k === 'trim' && e.p != null; });
-      return '<tr data-id="' + t.id + '"><td>' + t.d.slice(2) + ' ' + t.hm + '</td><td>' + esc(t.tk) + ' ' + t.r + ' <span class="small">' + esc(t.setup) + '</span></td><td>' + (a.g === 'C' ? 'Calls' : 'Puts') + ' ' + (a.match ? '<span class="good">✓</span>' : '<span class="bad">✗</span>') + '</td><td class="hidemob">' + (a.size ? esc(a.size) + ' ' + (a.sizeOk ? '<span class="good">✓</span>' : '<span class="bad">✗</span>') : '–') + '</td><td class="' + (typeof a.exit === 'number' ? cls(a.exit) : '') + '">' + (typeof a.exit === 'number' ? pct(a.exit) : '–') + '</td><td class="hidemob">' + (trims.length ? pct(trims[0].p) : '–') + '</td><td class="hidemob small">' + esc((a.note || '').slice(0, 60)) + '</td></tr>';
+      return '<tr data-id="' + t.id + '"><td>' + t.d.slice(2) + ' ' + t.hm + '</td><td>' + esc(t.tk) + ' ' + t.r + ' <span class="small">' + esc(t.setup) + '</span></td><td>' + (a.g === 'C' ? 'Calls' : 'Puts') + ' ' + (a.match ? '<span class="good">✓</span>' : '<span class="bad">✗</span>') + '</td><td class="hidemob">' + (a.size ? esc(a.size) + ' ' + (a.sizeOk ? '<span class="good">✓</span>' : '<span class="bad">✗</span>') : '–') + '</td><td class="' + (typeof a.exit === 'number' ? (a.match ? cls(a.exit) : 'dim') : '') + '"' + (a.match ? '' : ' title="On Bear\'s side; not counted in your average"') + '>' + (typeof a.exit === 'number' ? pct(a.exit) + (a.match ? '' : '*') : '–') + '</td><td class="hidemob">' + (trims.length ? pct(trims[0].p) : '–') + '</td><td class="hidemob small">' + esc((a.note || '').slice(0, 60)) + '</td></tr>';
     }).join('');
     $('history').classList.remove('hidden');
   }
@@ -542,5 +561,5 @@
   chartsLabel();
   if (!T.length) { $('head').innerHTML = '<span class="bad">Could not load data/trades.js. Keep index.html next to its data folder.</span>'; }
   else next();
-  window.__trainer = { get cur() { return cur; }, get series() { return series; }, get stage() { return stage; }, answer: answer, pickSize: pickSize, advance: advance, next: next, sell: sell, reopen: reopen, importCharts: importCharts };
+  window.__trainer = { get cur() { return cur; }, get series() { return series; }, get stage() { return stage; }, answer: answer, pickSize: pickSize, advance: advance, next: next, sell: sell, reopen: reopen, importCharts: importCharts, relevantFor: relevantFor };
 })();
