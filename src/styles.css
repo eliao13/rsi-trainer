@@ -95,6 +95,8 @@ textarea { width:100%; min-height:60px; resize:vertical; margin-top:6px; }
   #aReplay .row:not(.plan) { flex-wrap:nowrap; gap:6px; }
   #aReplay .row:not(.plan) button { flex:1; padding:8px 2px; min-width:0; }
   #actions .plan { margin:4px 0; }
+  #actions .plan { flex-wrap:nowrap; }
+  #actions .plan select { flex:1; min-width:0; }
   body { padding-bottom:170px; }
   kbd { display:none; }
   #history { padding:8px; }

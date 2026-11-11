@@ -41,3 +41,32 @@ export async function loadSeries(t: Trade): Promise<Series> {
   }
   return s;
 }
+
+// ---------- optional 1-minute bars (trade days only), produced by build_data.py ----------
+let m1Keys: Promise<Set<string>> | null = null;
+/** Instrument-years that have 1-minute data; empty until build_data.py has exported it. */
+export function loadM1Keys(): Promise<Set<string>> {
+  if (!m1Keys) m1Keys = loadScript('data/m1_index.js').then(() => new Set(window.BEAR_M1_KEYS || [])).catch(() => new Set<string>());
+  return m1Keys;
+}
+export const m1Key = (t: Trade) => t.ci + '_' + t.d.slice(0, 4);
+
+/** 1-minute bars for the trade's day, or null if not exported. */
+export async function loadM1(t: Trade): Promise<Series | null> {
+  const key = m1Key(t);
+  if (!(await loadM1Keys()).has(key)) return null;
+  if (!window.BEAR_M1?.[key]) await loadScript('data/m1_' + key + '.js').catch(() => undefined);
+  const p = window.BEAR_M1?.[key];
+  if (!p) return null;
+  // the trade's ET session: 8:30 to 16:00 (minute indexes are unix minutes)
+  const from = Math.floor(t.t / 60) - 600, to = Math.floor(t.t / 60) + 600;
+  const s: Series = { base: 1, t: [], o: [], h: [], l: [], c: [] };
+  let mn = 0;
+  for (let i = 0; i < p.dt.length; i++) {
+    mn += p.dt[i]; // delta-encoded minute index
+    if (mn < from) continue;
+    if (mn > to) break;
+    s.t.push(mn); s.o.push(p.o[i] / p.scale); s.h.push(p.h[i] / p.scale); s.l.push(p.l[i] / p.scale); s.c.push(p.c[i] / p.scale);
+  }
+  return s.t.length ? s : null;
+}

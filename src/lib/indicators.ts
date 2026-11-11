@@ -33,15 +33,18 @@ export function bands(v: (number | null)[], n = 34, k = 2) {
   return { mid, up, lo };
 }
 
-/** Bars completed by `cursorSec`, aggregated from 5-minute bars to `mins` minutes. `t` is in seconds. */
+/**
+ * Bars completed by `cursorSec`, aggregated to `mins` minutes. `S.t` is a bar index in units of
+ * `S.base` minutes (5 for the main series, 1 for the 1-minute series); output `t` is in seconds.
+ */
 export function aggBars(S: Series, cursorSec: number, mins: number): Series {
-  const n = mins / 5, out: Series = { t: [], o: [], h: [], l: [], c: [] };
+  const base = S.base || 5, n = Math.max(1, mins / base), out: Series = { t: [], o: [], h: [], l: [], c: [] };
   let lastG: number | null = null;
   for (let i = 0; i < S.t.length; i++) {
-    if ((S.t[i] + 1) * 300 > cursorSec) break;
+    if ((S.t[i] + 1) * base * 60 > cursorSec) break;
     const g = Math.floor(S.t[i] / n);
     if (g !== lastG) {
-      out.t.push(g * n * 300); out.o.push(S.o[i]); out.h.push(S.h[i]); out.l.push(S.l[i]); out.c.push(S.c[i]); lastG = g;
+      out.t.push(g * n * base * 60); out.o.push(S.o[i]); out.h.push(S.h[i]); out.l.push(S.l[i]); out.c.push(S.c[i]); lastG = g;
     } else {
       const k = out.t.length - 1;
       if (S.h[i] > out.h[k]) out.h[k] = S.h[i];

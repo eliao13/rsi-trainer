@@ -179,3 +179,36 @@ for inst,days in need.items():
         open(fn,'w').write(f'(window.BEAR_BARS=window.BEAR_BARS||{{}})["{LABEL[inst]}_{yr}"]='+json_dump(obj)+';')
         print(fn,len(ks),round(os.path.getsize(fn)/1e6,2),'MB')
 print('missing weekdays',dict(missing))
+
+# ---------- 1-minute bars for the replay's 1-minute chart ----------
+# Only trade days, 8:30-16:00 New York, per chart instrument and year. Minute indexes are unix
+# minutes, delta-encoded (mostly 1s) to keep the files small. data/m1_index.js lists what exists.
+def export_m1(trades, out_dir='bear-trainer/public/data'):
+    days=collections.defaultdict(set)
+    for o in trades: days[CHART[o['tk']]].add(date.fromisoformat(o['d']))
+    keys=[]
+    for inst,ds in sorted(days.items()):
+        div=100 if inst=='USATECHIDXUSD' else 10
+        per=collections.defaultdict(lambda:{'t':[],'o':[],'h':[],'l':[],'c':[]})
+        for d in sorted(ds):
+            rec=day_raw(inst,d)
+            if not rec: continue
+            base=int(datetime(d.year,d.month,d.day,tzinfo=UTC).timestamp())
+            lo=int(datetime(d.year,d.month,d.day,8,30,tzinfo=NY).timestamp())//60
+            hi=int(datetime(d.year,d.month,d.day,16,0,tzinfo=NY).timestamp())//60
+            P=per[d.year]
+            for tt,o,c,l,h,v in rec:
+                mn=(base+tt)//60
+                if v<=0 or not (lo<=mn<hi): continue
+                P['t'].append(mn); P['o'].append(o//div); P['h'].append(h//div); P['l'].append(l//div); P['c'].append(c//div)
+        for yr,P in sorted(per.items()):
+            ts=P['t']
+            if not ts: continue
+            obj={'dt':[ts[0]]+[b-a for a,b in zip(ts,ts[1:])],'o':P['o'],'h':P['h'],'l':P['l'],'c':P['c'],'scale':1000//div}
+            key=f'{LABEL[inst]}_{yr}'; fn=f'{out_dir}/m1_{key}.js'
+            open(fn,'w').write(f'(window.BEAR_M1=window.BEAR_M1||{{}})["{key}"]='+json_dump(obj)+';')
+            keys.append(key); print(fn,len(ts),'bars',round(os.path.getsize(fn)/1e6,2),'MB')
+    open(f'{out_dir}/m1_index.js','w').write('window.BEAR_M1_KEYS='+json_dump(sorted(keys))+';')
+
+if __name__=='__main__':
+    export_m1(out)

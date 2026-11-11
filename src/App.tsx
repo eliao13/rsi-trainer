@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Answer, ExitPlan, Filters, Series, Side, Size, Stage, Trade, UserExit } from './types';
-import { loadSeries, loadTrades } from './lib/data';
+import { loadM1, loadM1Keys, loadSeries, loadTrades, m1Key } from './lib/data';
 import { useSaved } from './lib/storage';
-import { rsiAt } from './lib/indicators';
+import { aggBars, rsi, rsiAt } from './lib/indicators';
+import { entrySwing, swingBreakMinute } from './lib/levels';
+import { findDivergences } from './lib/divergence';
 import { firstTouch, maxStep, pctAt, sizeable } from './lib/trade';
 import { relevantFor } from './lib/messages';
 import { countCharts, importCharts } from './lib/charts';
@@ -34,6 +36,8 @@ export function App() {
   const [round, setRound] = useState<Round | null>(null);
   const [series, setSeries] = useState<Series | null>(null);
   const [tf, setTf] = useState(5);
+  const [m1, setM1] = useState<Series | null>(null);
+  const [m1Avail, setM1Avail] = useState(false);
   const [poolSize, setPoolSize] = useState(0);
   const [flashSize, setFlashSize] = useState(false);
   const [sessionLosses, setSessionLosses] = useState(0);
@@ -44,6 +48,14 @@ export function App() {
   const filters = saved.f || DEFAULT_FILTERS;
   const plan = saved.plan || DEFAULT_PLAN;
   const byId = useMemo(() => new Map((trades || []).map((t) => [t.id, t])), [trades]);
+  // What the chart showed at entry: swing level and when a 5m close broke it, possible divergences.
+  const shownTrade = round?.trade;
+  const facts = useMemo(() => {
+    if (!shownTrade || !series) return { swing: null as number | null, swingBreakM: null as number | null, ready: false };
+    const divs = (mins: number) => { const B = aggBars(series, shownTrade.t, mins); return findDivergences(B, rsi(B.c)); };
+    const swing = entrySwing(series, shownTrade);
+    return { swing, swingBreakM: swingBreakMinute(series, shownTrade, swing), div5: divs(5), div15: divs(15), ready: true };
+  }, [shownTrade, series]);
 
   // The latest round, readable synchronously by handlers (keyboard, tests) between renders.
   const roundRef = useRef<Round | null>(null);
@@ -60,8 +72,18 @@ export function App() {
     let live = true;
     setSeries(null);
     loadSeries(tradeOnScreen).then((s) => live && setSeries(s));
+    setM1(null); setM1Avail(false);
+    loadM1Keys().then((keys) => live && setM1Avail(keys.has(m1Key(tradeOnScreen))));
     return () => { live = false; };
   }, [tradeOnScreen]);
+  // 1-minute bars: fetched only when that view is chosen; fall back to 5 min where there are none.
+  useEffect(() => {
+    if (tf !== 1 || !tradeOnScreen) return;
+    if (!m1Avail) { setTf(5); return; }
+    let live = true;
+    loadM1(tradeOnScreen).then((s) => { if (!live) return; if (s) setM1(s); else { setM1Avail(false); setTf(5); } });
+    return () => { live = false; };
+  }, [tf, tradeOnScreen, m1Avail]);
 
   const start = useCallback((t: Trade, extra?: Partial<Round>) => {
     setR({ trade: t, stage: 'guess', step: 0, guess: null, size: null, userExit: null, review: false, ...extra });
@@ -110,7 +132,7 @@ export function App() {
   const advance = (n: number) => {
     const r = roundRef.current; if (!r || r.stage !== 'replay') return;
     const target = Math.min(maxStep(r.trade), r.step + n);
-    const hit = !r.userExit && !r.review ? firstTouch(r.trade, r.step, target, plan) : null;
+    const hit = !r.userExit && !r.review ? firstTouch(r.trade, r.step, target, plan, facts.swingBreakM) : null;
     if (hit) moveTo(r, hit.m, { m: hit.m, p: hit.p, why: hit.why });
     else moveTo(r, target, null);
   };
@@ -174,9 +196,10 @@ export function App() {
           <div id="head">
             {t && <><span className="big">{t.tk}</span><span>{fmtDay.format(new Date(t.t * 1000))} · {t.hm} ET</span>{!round.review && <span className="dim hidemob">{poolSize} trades in this set</span>}</>}
           </div>
-          <div className="tf">Chart: <button id="tf5" className={tf === 5 ? 'on' : ''} onClick={() => setTf(5)}>5 min</button><button id="tf15" className={tf === 15 ? 'on' : ''} onClick={() => setTf(15)}>15 min</button>
+          <div className="tf">Chart: {m1Avail && <button id="tf1" className={tf === 1 ? 'on' : ''} onClick={() => setTf(1)} title="1-minute bars for timing exits">1 min</button>}<button id="tf5" className={tf === 5 ? 'on' : ''} onClick={() => setTf(5)}>5 min</button><button id="tf15" className={tf === 15 ? 'on' : ''} onClick={() => setTf(15)}>15 min</button>
             <span className="tfnote">RSI 14 with Bollinger Bands on the RSI (34-bar median, 2σ). Tap or hover the chart to read a candle.</span></div>
-          <Chart trade={t || null} series={series} step={round?.step || 0} tf={tf} stage={round?.stage || 'guess'} userExit={round?.userExit || null} />
+          <Chart trade={t || null} series={tf === 1 ? m1 : series} step={round?.step || 0} tf={tf} stage={round?.stage || 'guess'} userExit={round?.userExit || null}
+            swing={facts.swing} divs={tf === 5 ? facts.div5 : tf === 15 ? facts.div15 : undefined} />
         </section>
         <aside>
           {round && t ? (
@@ -184,7 +207,7 @@ export function App() {
               <ActionBar trade={t} stage={round.stage} step={round.step} guess={round.guess} size={round.size} userExit={round.userExit} review={round.review}
                 flashSize={flashSize} plan={plan} onPlan={setPlan} onSize={pickSize} onAnswer={answer} onSkip={() => next()} onAdvance={advance} onSell={sell} onNext={() => next()} />
               {round.stage !== 'guess' && <TradePanel key={t.id} trade={t} step={round.step} stage={round.stage} />}
-              {round.stage === 'done' && <Results trade={t} guess={round.guess} size={round.size} userExit={round.userExit} answer={saved.a[t.id]} review={round.review} r15={r15}
+              {round.stage === 'done' && <Results trade={t} facts={facts} guess={round.guess} size={round.size} userExit={round.userExit} answer={saved.a[t.id]} review={round.review} r15={r15}
                 sessionLosses={sessionLosses} chartsVersion={chartsVersion} onNote={(note) => saved.a[t.id] && patchAnswer(t.id, { note })} onLoadCharts={() => setOverlay('charts')} onChartSaved={() => countCharts().then(setChartCount)} />}
               <BiasPanel b4={t.b4} bd={t.bd} r15={r15} r5={r5} loading={!series} />
             </>

@@ -37,8 +37,9 @@ export interface Trade {
   bd: RsiState | null; // daily RSI at entry
 }
 
-/** 5-minute bars; `t` is the bar index (unix seconds / 300). */
+/** Price bars; `t` is the bar index in units of `base` minutes (unix seconds / (base*60)). */
 export interface Series {
+  base?: number; // minutes per bar index; 5 when omitted
   t: number[];
   o: number[];
   h: number[];
@@ -76,8 +77,9 @@ export interface Filters {
 
 export interface ExitPlan {
   t: number; // target %, 0 = off
-  s: number; // stop %, 0 = off
+  s: number; // stop %, 0 = off, -1 = chart stop (5m close past the entry swing)
 }
+export const CHART_STOP = -1;
 
 export interface SavedState {
   a: Record<string, Answer>;
@@ -88,6 +90,8 @@ export interface SavedState {
 declare global {
   interface Window {
     BEAR_TRADES?: Trade[];
+    BEAR_M1?: Record<string, { scale: number; dt: number[]; o: number[]; h: number[]; l: number[]; c: number[] }>;
+    BEAR_M1_KEYS?: string[];
     BEAR_BARS?: Record<string, { scale: number; t: number[]; o: number[]; h: number[]; l: number[]; c: number[] }>;
   }
 }

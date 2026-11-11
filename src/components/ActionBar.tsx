@@ -1,4 +1,5 @@
 import type { ExitPlan, Side, Size, Stage, Trade, UserExit } from '../types';
+import { CHART_STOP } from '../types';
 import { optAt, pctAt, sideName, sizeable, maxStep } from '../lib/trade';
 import { pct, tone } from '../lib/format';
 
@@ -49,12 +50,12 @@ export function ActionBar(p: Props) {
           {wrong && <span className="hidemob"><span className="small">Bear's {sideName(t.r)} (you picked {sideName(p.guess || '')})</span><br /></span>}
           ${price.toFixed(2)} <span className={tone(r)}>{pct(r)}</span> <span className="small">{step} min in</span>
         </div>
-        <div className="row plan">Auto-sell at
+        <div className="row plan"><span className="hidemob">Auto-sell at</span>
           <select id="pT" aria-label="Profit target" value={p.plan.t} onChange={(e) => { p.onPlan({ ...p.plan, t: +e.target.value }); e.target.blur(); }}>
             <option value={0}>no target</option><option value={20}>+20%</option><option value={23}>+23%</option><option value={30}>+30%</option><option value={50}>+50%</option><option value={100}>+100%</option>
           </select>
-          or <select id="pS" aria-label="Stop loss" value={p.plan.s} onChange={(e) => { p.onPlan({ ...p.plan, s: +e.target.value }); e.target.blur(); }}>
-            <option value={0}>no stop</option><option value={20}>−20%</option><option value={30}>−30%</option><option value={40}>−40%</option><option value={50}>−50%</option>
+          <span className="hidemob">or</span> <select id="pS" aria-label="Stop loss" value={p.plan.s} onChange={(e) => { p.onPlan({ ...p.plan, s: +e.target.value }); e.target.blur(); }}>
+            <option value={0}>no stop</option><option value={CHART_STOP}>swing break (5m)</option><option value={20}>−20%</option><option value={30}>−30%</option><option value={40}>−40%</option><option value={50}>−50%</option>
           </select>
         </div>
         <div className="row">
@@ -65,7 +66,7 @@ export function ActionBar(p: Props) {
           <button id="bSell" disabled={!!ue} onClick={p.onSell}>Sell<kbd>S</kbd></button>
         </div>
         <div id="sold" className="small">{ue && (
-          <>{ue.why === 'target' ? 'Target hit: auto-sold' : ue.why === 'stop' ? 'Stop hit: auto-sold' : 'You sold'} at <b className={tone(ue.p)}>{pct(ue.p)}</b> after {ue.m} min{wrong ? " (Bear's side, so it doesn't count toward your average)" : ''}. Keep stepping to see what happened next.</>
+          <>{ue.why === 'target' ? 'Target hit: auto-sold' : ue.why === 'stop' ? (p.plan.s === CHART_STOP ? 'A 5m candle closed past the entry swing: auto-sold' : 'Stop hit: auto-sold') : 'You sold'} at <b className={tone(ue.p)}>{pct(ue.p)}</b> after {ue.m} min{wrong ? " (Bear's side, so it doesn't count toward your average)" : ''}. Keep stepping to see what happened next.</>
         )}</div>
       </div></div>
     );

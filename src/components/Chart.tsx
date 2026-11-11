@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Series, Stage, Trade, UserExit } from '../types';
+import type { Divergence } from '../lib/divergence';
 import { aggBars, bands, niceStep, rsi } from '../lib/indicators';
 import { fmtET, fmtMD } from '../lib/format';
 
-interface Props { trade: Trade | null; series: Series | null; step: number; tf: number; stage: Stage; userExit: UserExit | null }
+interface Props {
+  trade: Trade | null;
+  series: Series | null; // bars for the shown timeframe (5-minute series, or 1-minute for tf 1)
+  step: number; tf: number; stage: Stage; userExit: UserExit | null;
+  swing?: number | null; // entry swing level (shown after answering)
+  divs?: Divergence[]; // divergences on this timeframe, as indexes into its bars (shown after answering)
+}
 interface Geo { i0: number; bw: number; padL: number; nb: number }
 
 /** Candles + RSI with Bollinger Bands on the RSI, drawn on a canvas. Shows only bars completed by the replay cursor. */
-export function Chart({ trade, series, step, tf, stage, userExit }: Props) {
+export function Chart(props: Props) {
+  const { trade, tf } = props;
   const ref = useRef<HTMLCanvasElement>(null);
   const geo = useRef<Geo | null>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -19,7 +27,8 @@ export function Chart({ trade, series, step, tf, stage, userExit }: Props) {
     const ro = new ResizeObserver(() => setSize(cv.clientWidth * 10000 + cv.clientHeight));
     ro.observe(cv); return () => ro.disconnect();
   }, []);
-  useEffect(() => { if (ref.current) geo.current = draw(ref.current, { trade, series, step, tf, stage, userExit }, hover); }, [trade, series, step, tf, stage, userExit, hover, size]);
+  useEffect(() => { if (ref.current) geo.current = draw(ref.current, props, hover); }); // cheap enough to redraw every render
+  void size;
 
   const onPointer = (e: React.PointerEvent) => {
     const g = geo.current; if (!g || !ref.current) return;
@@ -30,7 +39,7 @@ export function Chart({ trade, series, step, tf, stage, userExit }: Props) {
   return <canvas id="chart" ref={ref} onPointerMove={onPointer} onPointerDown={onPointer} onPointerLeave={() => setHover(null)} />;
 }
 
-function draw(cv: HTMLCanvasElement, { trade: cur, series, step, tf, stage, userExit }: Props, hover: number | null): Geo | null {
+function draw(cv: HTMLCanvasElement, { trade: cur, series, step, tf, stage, userExit, swing, divs }: Props, hover: number | null): Geo | null {
   const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
   cv.width = W * dpr; cv.height = H * dpr;
   const x = cv.getContext('2d')!; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
@@ -42,7 +51,7 @@ function draw(cv: HTMLCanvasElement, { trade: cur, series, step, tf, stage, user
   const entrySec = cur.t, cursor = entrySec + step * 60;
   const B = aggBars(series, cursor, tf), nb = B.t.length; if (!nb) return null;
   const closeSec = entrySec + cur.path[cur.path.length - 1][0] * 60;
-  const barSec = tf * 60, wide = W >= 700;
+  const barSec = tf * 60, wide = W >= 700 && tf !== 1; // 1-minute view always slides with the replay
   const padL = 8, padR = wide ? 62 : 52, top = 8, hP = Math.round((H - 40) * 0.68), hR = H - 40 - hP - 14, yR0 = top + hP + 14;
   let ie = 0;
   for (let i = 0; i < nb; i++) if (B.t[i] + barSec <= entrySec) ie = i;
@@ -51,12 +60,14 @@ function draw(cv: HTMLCanvasElement, { trade: cur, series, step, tf, stage, user
     i0 = Math.max(0, ie - (tf === 5 ? 150 : 110));
     slots = ie - i0 + 1 + Math.ceil((closeSec - (B.t[ie] + barSec)) / barSec) + 2;
   } else { // phones: fixed candle width, window slides with the replay
-    slots = Math.max(30, Math.floor((W - padL - padR) / 4.5));
+    slots = Math.max(30, Math.floor((W - padL - padR) / (tf === 1 && W >= 700 ? 6 : 4.5)));
     i0 = Math.max(0, nb + (stage === 'guess' ? 6 : 4) - slots);
   }
   const bw = (W - padL - padR) / slots, xi = (i: number) => padL + (i - i0 + 0.5) * bw;
   let lo = Infinity, hi = -Infinity;
   for (let i = i0; i < nb; i++) { if (B.l[i] < lo) lo = B.l[i]; if (B.h[i] > hi) hi = B.h[i]; }
+  const showSwing = stage !== 'guess' && swing != null;
+  if (showSwing) { lo = Math.min(lo, swing as number); hi = Math.max(hi, swing as number); }
   const pad = (hi - lo) * 0.06 || 1; lo -= pad; hi += pad;
   const yp = (v: number) => top + ((hi - v) / (hi - lo)) * hP;
   x.font = '11px system-ui'; x.textBaseline = 'middle';
@@ -81,6 +92,25 @@ function draw(cv: HTMLCanvasElement, { trade: cur, series, step, tf, stage, user
     x.beginPath(); x.moveTo(xi(i), yp(B.h[i])); x.lineTo(xi(i), yp(B.l[i])); x.stroke();
     const y1 = yp(Math.max(B.o[i], B.c[i])), y2 = yp(Math.min(B.o[i], B.c[i]));
     x.fillRect(xi(i) - Math.max(1, bw * 0.35), y1, Math.max(2, bw * 0.7), Math.max(1, y2 - y1));
+  }
+  if (showSwing) {
+    const ys = yp(swing as number), lbl = (cur.r === 'C' ? 'Entry swing low' : 'Entry swing high') + (wide ? ': stop on a 5m close past it' : ' (5m-close stop)');
+    x.strokeStyle = 'rgba(246,70,93,.8)'; x.setLineDash([6, 4]); x.beginPath(); x.moveTo(padL, ys); x.lineTo(W - padR, ys); x.stroke(); x.setLineDash([]);
+    const ly = ys + (cur.r === 'C' ? 11 : -11), lw = x.measureText(lbl).width + 10;
+    x.fillStyle = 'rgba(11,14,20,.85)'; x.fillRect(padL + 2, ly - 8, lw, 16);
+    x.fillStyle = 'rgba(246,70,93,.95)'; x.fillText(lbl, padL + 7, ly);
+  }
+  const divColor = (d: Divergence) => (d.type === 'bull' ? '#2ebd85' : '#f6465d');
+  const showDivs = stage !== 'guess' && divs ? divs.filter((d) => d.i1 >= i0 && d.i2 < nb) : [];
+  for (const d of showDivs) {
+    const v1 = d.type === 'bull' ? B.l[d.i1] : B.h[d.i1], v2 = d.type === 'bull' ? B.l[d.i2] : B.h[d.i2];
+    x.strokeStyle = divColor(d); x.lineWidth = 2; x.beginPath(); x.moveTo(xi(d.i1), yp(v1)); x.lineTo(xi(d.i2), yp(v2)); x.stroke(); x.lineWidth = 1;
+    // label kept clear of the "Entry" / instrument labels along the top
+    const dl = d.type === 'bull' ? 'Bull div?' : 'Bear div?';
+    const dy = Math.min(top + hP - 8, Math.max(top + 28, yp(v2) + (d.type === 'bull' ? 13 : -13)));
+    const dx = Math.min(xi(d.i2) + 4, W - padR - x.measureText(dl).width - 8);
+    x.fillStyle = 'rgba(11,14,20,.85)'; x.fillRect(dx - 3, dy - 8, x.measureText(dl).width + 6, 16);
+    x.fillStyle = divColor(d); x.fillText(dl, dx, dy);
   }
   const xe = padL + (ie - i0 + 1) * bw + ((entrySec - (B.t[ie] + barSec)) / barSec) * bw;
   if (xe > padL) {
@@ -110,6 +140,10 @@ function draw(cv: HTMLCanvasElement, { trade: cur, series, step, tf, stage, user
     x.stroke(); x.lineWidth = 1;
   };
   line(bb.up, 'rgba(230,180,80,.7)', 1); line(bb.lo, 'rgba(230,180,80,.7)', 1); line(bb.mid, 'rgba(200,170,230,.9)', 1.2); line(R, '#9fe3f0', 1.6);
+  for (const d of showDivs) {
+    const r1 = R[d.i1], r2 = R[d.i2]; if (r1 == null || r2 == null) continue;
+    x.strokeStyle = divColor(d); x.lineWidth = 2; x.beginPath(); x.moveTo(xi(d.i1), yr(r1)); x.lineTo(xi(d.i2), yr(r2)); x.stroke(); x.lineWidth = 1;
+  }
   x.fillStyle = '#8b93a7';
   x.fillText('RSI ' + (R[nb - 1] == null ? '' : (R[nb - 1] as number).toFixed(1)) + '   median ' + (bb.mid[nb - 1] == null ? '' : (bb.mid[nb - 1] as number).toFixed(1)), padL + 6, yR0 + 10);
   x.fillText(cur.ci + ' · ' + tf + ' min', padL + 6, top + 8);
