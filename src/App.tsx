@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Answer, ExitPlan, Filters, Series, Side, Size, Stage, Trade, UserExit } from './types';
-import { loadM1, loadM1Keys, loadSeries, loadTrades, m1Key } from './lib/data';
+import type { Answer, ExitPlan, Filters, Series, Side, Size, Stage, Trade, TradeIndex, UserExit } from './types';
+import { loadM1, loadM1Keys, loadSeries, loadTrade, loadTrades, m1Key } from './lib/data';
 import { useSaved } from './lib/storage';
 import { aggBars, rsi, rsiAt } from './lib/indicators';
 import { entrySwing, swingBreakMinute } from './lib/levels';
 import { findDivergences } from './lib/divergence';
-import { firstTouch, maxStep, pctAt, sizeable } from './lib/trade';
+import { fade4hStat, firstTouch, maxStep, pctAt, sizeable } from './lib/trade';
 import { relevantFor } from './lib/messages';
 import { countCharts, importCharts } from './lib/charts';
 import { fmtDay } from './lib/format';
@@ -21,16 +21,18 @@ import { ChartsDialog } from './components/ChartsDialog';
 const DEFAULT_FILTERS: Filters = { fTod: 'all', fSetup: 'all', fTk: 'all', fYr: 'all', fSeen: 'unseen' };
 const DEFAULT_PLAN: ExitPlan = { t: 0, s: 0 };
 
-function inPool(t: Trade, f: Filters, a: Answer | undefined) {
+function inPool(t: TradeIndex, f: Filters, a: Answer | undefined, skipped: boolean) {
   return (f.fTod === 'all' || t.tod === f.fTod) && (f.fSetup === 'all' || t.setup === f.fSetup) && (f.fTk === 'all' || t.tk === f.fTk) && (f.fYr === 'all' || t.d.slice(0, 4) === f.fYr) &&
-    (f.fSeen === 'any' || (f.fSeen === 'unseen' && !a) || (f.fSeen === 'miss' && !!a && !!a.g && (!a.match || a.sizeOk === false)));
+    (f.fSeen === 'any' || (f.fSeen === 'unseen' && !a && !skipped) || (f.fSeen === 'skipped' && skipped && !a) ||
+      (f.fSeen === 'miss' && !!a && !!a.g && (!a.match || a.sizeOk === false)));
 }
 
 /** One round: guess (side + size) → replay minute by minute → done. */
 interface Round { trade: Trade; stage: Stage; step: number; guess: Side | null; size: Size | null; userExit: UserExit | null; review: boolean }
 
 export function App() {
-  const [trades, setTrades] = useState<Trade[] | null>(null);
+  const [trades, setTrades] = useState<TradeIndex[] | null>(null);
+  const [pending, setPending] = useState<TradeIndex | null>(null); // trade whose detail is loading
   const [loadError, setLoadError] = useState(false);
   const [saved, updateSaved] = useSaved();
   const [round, setRound] = useState<Round | null>(null);
@@ -46,6 +48,8 @@ export function App() {
   const [chartsVersion, setChartsVersion] = useState(0);
 
   const filters = saved.f || DEFAULT_FILTERS;
+  const skips = saved.skips || {};
+  const fade = useMemo(() => (trades ? fade4hStat(trades) : undefined), [trades]);
   const plan = saved.plan || DEFAULT_PLAN;
   const byId = useMemo(() => new Map((trades || []).map((t) => [t.id, t])), [trades]);
   // What the chart showed at entry: swing level and when a 5m close broke it, possible divergences.
@@ -85,25 +89,37 @@ export function App() {
     return () => { live = false; };
   }, [tf, tradeOnScreen, m1Avail]);
 
-  const start = useCallback((t: Trade, extra?: Partial<Round>) => {
-    setR({ trade: t, stage: 'guess', step: 0, guess: null, size: null, userExit: null, review: false, ...extra });
-    window.scrollTo(0, 0);
+  // Starting a round loads the trade's option prices and messages first (one month file, cached).
+  const wanted = useRef<number | null>(null);
+  const start = useCallback((ti: TradeIndex, extra?: (t: Trade) => Partial<Round>) => {
+    wanted.current = ti.id; setPending(ti); setR(null); setSeries(null); window.scrollTo(0, 0);
+    loadTrade(ti).then((t) => {
+      if (wanted.current !== ti.id) return;
+      setPending(null);
+      setR({ trade: t, stage: 'guess', step: 0, guess: null, size: null, userExit: null, review: false, ...(extra ? extra(t) : {}) });
+    }).catch(() => { if (wanted.current === ti.id) { setPending(null); setLoadError(true); } });
   }, [setR]);
 
   const next = useCallback((f: Filters = filters) => {
     if (!trades) return;
-    let P = trades.filter((t) => inPool(t, f, saved.a[t.id]));
-    const cur = roundRef.current?.trade;
-    if (P.length > 1 && cur) P = P.filter((t) => t !== cur);
+    let P = trades.filter((t) => inPool(t, f, saved.a[t.id], !!skips[t.id]));
+    const curId = roundRef.current?.trade.id ?? wanted.current;
+    if (P.length > 1 && curId != null) P = P.filter((t) => t.id !== curId);
     setPoolSize(P.length);
     if (!P.length) { setR(null); return; }
     start(P[Math.floor(Math.random() * P.length)]);
-  }, [trades, filters, saved.a, start, setR]);
+  }, [trades, filters, saved.a, skips, start, setR]);
 
   useEffect(() => { if (trades && !roundRef.current) next(); }, [trades]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setFilters = (f: Filters) => { updateSaved((s) => ({ ...s, f })); next(f); };
   const setPlan = (p: ExitPlan) => updateSaved((s) => ({ ...s, plan: p }));
+  /** Skips are recorded, so they show in History and don't come back as "haven't done". */
+  const skip = () => {
+    const r = roundRef.current;
+    if (r && r.stage === 'guess' && !r.review) updateSaved((s) => ({ ...s, skips: { ...(s.skips || {}), [r.trade.id]: Date.now() } }));
+    next();
+  };
   const patchAnswer = useCallback((id: number, patch: Partial<Answer>) => updateSaved((s) => ({ ...s, a: { ...s.a, [id]: { ...s.a[id], ...patch } as Answer } })), [updateSaved]);
 
   const pickSize = (size: Size) => { const r = roundRef.current; if (r && r.stage === 'guess' && sizeable(r.trade)) setR({ ...r, size }); };
@@ -113,7 +129,10 @@ export function App() {
     const t = r.trade;
     if (sizeable(t) && !r.size) { setFlashSize(true); setTimeout(() => setFlashSize(false), 500); return; }
     const prevNote = saved.a[t.id]?.note || '';
-    updateSaved((s) => ({ ...s, a: { ...s.a, [t.id]: { g, match: g === t.r, size: r.size, sizeOk: sizeable(t) ? r.size === t.setup : null, ts: Date.now(), note: prevNote } } }));
+    updateSaved((s) => {
+      const sk = { ...(s.skips || {}) }; delete sk[t.id]; // answering a skipped trade un-skips it
+      return { ...s, skips: sk, a: { ...s.a, [t.id]: { g, match: g === t.r, size: r.size, sizeOk: sizeable(t) ? r.size === t.setup : null, ts: Date.now(), note: prevNote } } };
+    });
     setR({ ...r, stage: 'replay', guess: g });
   };
 
@@ -146,15 +165,16 @@ export function App() {
   const reopen = (id: number) => {
     const t = byId.get(id), a = saved.a[id]; if (!t || !a) return;
     setOverlay(null);
-    start(t, { stage: 'done', step: maxStep(t), guess: a.g, size: a.size || null, review: true, userExit: typeof a.exitM === 'number' ? { m: a.exitM, p: a.exit!, why: a.exitWhy } : null });
+    start(t, (full) => ({ stage: 'done', step: maxStep(full), guess: a.g, size: a.size || null, review: true, userExit: typeof a.exitM === 'number' ? { m: a.exitM, p: a.exit!, why: a.exitWhy } : null }));
   };
 
-  const importAnswers = (incoming: Record<string, Answer>) => {
+  const importAnswers = (incoming: Record<string, Answer>, incomingSkips: Record<string, number> = {}) => {
     let n = 0;
     updateSaved((s) => {
-      const a = { ...s.a };
+      const a = { ...s.a }, sk = { ...(s.skips || {}) };
       for (const id of Object.keys(incoming)) if (!a[id] || (incoming[id].ts || 0) > (a[id].ts || 0)) { a[id] = incoming[id]; n++; }
-      return { ...s, a };
+      for (const id of Object.keys(incomingSkips)) if (!a[id]) sk[id] = Math.max(sk[id] || 0, incomingSkips[id]);
+      return { ...s, a, skips: sk };
     });
     return n;
   };
@@ -168,7 +188,7 @@ export function App() {
     if (k === 'escape') { setOverlay(null); return; }
     if (k === 'h') { setOverlay(overlay === 'history' ? null : 'history'); return; }
     if (overlay || !r) return;
-    if (r.stage === 'guess') { if (k === 'c') answer('C'); else if (k === 'p') answer('P'); else if (k === 'd') pickSize('Daytrade'); else if (k === 'l') pickSize('Lotto'); else if (k === 'k') next(); else return; }
+    if (r.stage === 'guess') { if (k === 'c') answer('C'); else if (k === 'p') answer('P'); else if (k === 'd') pickSize('Daytrade'); else if (k === 'l') pickSize('Lotto'); else if (k === 'k') skip(); else return; }
     else if (r.stage === 'replay') { if (e.key === 'ArrowRight') advance(e.shiftKey ? 15 : 5); else if (k === 's') sell(); else if (k === 'e') advance(99999); else return; }
     else { if (k === 'enter' || k === 'n' || k === ' ') next(); else return; }
     e.preventDefault();
@@ -187,36 +207,41 @@ export function App() {
   const r15 = useMemo(() => (t ? rsiAt(series, t.t, 15) : null), [t, series]);
   const r5 = useMemo(() => (t ? rsiAt(series, t.t, 5) : null), [t, series]);
 
-  if (loadError) return <div style={{ padding: 20 }} className="bad">Could not load data/trades.js.</div>;
+  if (loadError) return <div style={{ padding: 20 }} className="bad">Could not load the trade data. Check your connection and reload the page.</div>;
+  const headTrade: TradeIndex | undefined = t || pending || undefined;
+  const loadingMsg = !trades ? "Loading Bear's trades…" : pending ? 'Loading trade…' : undefined;
   return (
     <>
       <Header filters={filters} onFilter={setFilters} answers={saved.a} chartCount={chartCount} onHistory={() => setOverlay('history')} onCharts={() => setOverlay('charts')} />
       <main>
         <section className="box">
           <div id="head">
-            {t && <><span className="big">{t.tk}</span><span>{fmtDay.format(new Date(t.t * 1000))} · {t.hm} ET</span>{!round.review && <span className="dim hidemob">{poolSize} trades in this set</span>}</>}
+            {headTrade ? <><span className="big">{headTrade.tk}</span><span>{fmtDay.format(new Date(headTrade.t * 1000))} · {headTrade.hm} ET</span>{!round?.review && <span className="dim hidemob">{poolSize} trades in this set</span>}</>
+              : !trades && <span className="dim">Loading Bear's trades…</span>}
           </div>
           <div className="tf">Chart: {m1Avail && <button id="tf1" className={tf === 1 ? 'on' : ''} onClick={() => setTf(1)} title="1-minute bars for timing exits">1 min</button>}<button id="tf5" className={tf === 5 ? 'on' : ''} onClick={() => setTf(5)}>5 min</button><button id="tf15" className={tf === 15 ? 'on' : ''} onClick={() => setTf(15)}>15 min</button>
             <span className="tfnote">RSI 14 with Bollinger Bands on the RSI (34-bar median, 2σ). Tap or hover the chart to read a candle.</span></div>
-          <Chart trade={t || null} series={tf === 1 ? m1 : series} step={round?.step || 0} tf={tf} stage={round?.stage || 'guess'} userExit={round?.userExit || null}
+          <Chart trade={t || null} message={loadingMsg} series={tf === 1 ? m1 : series} step={round?.step || 0} tf={tf} stage={round?.stage || 'guess'} userExit={round?.userExit || null}
             swing={facts.swing} divs={tf === 5 ? facts.div5 : tf === 15 ? facts.div15 : undefined} />
         </section>
         <aside>
           {round && t ? (
             <>
               <ActionBar trade={t} stage={round.stage} step={round.step} guess={round.guess} size={round.size} userExit={round.userExit} review={round.review}
-                flashSize={flashSize} plan={plan} onPlan={setPlan} onSize={pickSize} onAnswer={answer} onSkip={() => next()} onAdvance={advance} onSell={sell} onNext={() => next()} />
+                flashSize={flashSize} plan={plan} tf={tf} onPlan={setPlan} onSize={pickSize} onAnswer={answer} onSkip={skip} onAdvance={advance} onSell={sell} onNext={() => next()} />
               {round.stage !== 'guess' && <TradePanel key={t.id} trade={t} step={round.step} stage={round.stage} />}
-              {round.stage === 'done' && <Results trade={t} facts={facts} guess={round.guess} size={round.size} userExit={round.userExit} answer={saved.a[t.id]} review={round.review} r15={r15}
+              {round.stage === 'done' && <Results trade={t} facts={facts} fade={fade} guess={round.guess} size={round.size} userExit={round.userExit} answer={saved.a[t.id]} review={round.review} r15={r15}
                 sessionLosses={sessionLosses} chartsVersion={chartsVersion} onNote={(note) => saved.a[t.id] && patchAnswer(t.id, { note })} onLoadCharts={() => setOverlay('charts')} onChartSaved={() => countCharts().then(setChartCount)} />}
-              <BiasPanel b4={t.b4} bd={t.bd} r15={r15} r5={r5} loading={!series} />
+              <BiasPanel b4={t.b4} bd={t.bd} r15={r15} r5={r5} loading={!series} fade={fade} />
             </>
-          ) : trades ? (
+          ) : !trades || pending ? (
+            <div className="box" id="loadingBox"><h3>{!trades ? "Loading Bear's trades…" : 'Loading trade…'}</h3><div className="small">{!trades ? 'About 200 KB. The first trade appears in a moment.' : 'Fetching his messages and the option prices for this day.'}</div></div>
+          ) : (
             <div className="box" id="emptyBox">No trades match these filters. Change a filter above, or set "Show" to "Any trade".</div>
-          ) : null}
+          )}
         </aside>
       </main>
-      {overlay === 'history' && trades && <History trades={byId} answers={saved.a} onClose={() => setOverlay(null)} onOpen={reopen} onImport={importAnswers} />}
+      {overlay === 'history' && trades && <History trades={byId} answers={saved.a} skips={skips} onClose={() => setOverlay(null)} onOpen={reopen} onImport={importAnswers} />}
       {overlay === 'charts' && <ChartsDialog onClose={() => setOverlay(null)} onChanged={refreshCharts} />}
     </>
   );

@@ -1,9 +1,9 @@
 import { useRef } from 'react';
-import type { Answer, Trade } from '../types';
+import type { Answer, TradeIndex } from '../types';
 import { pct, tone } from '../lib/format';
-import { postedTrims } from '../lib/trade';
+import { sizeable } from '../lib/trade';
 
-interface Row { t: Trade; a: Answer }
+interface Row { t: TradeIndex; a: Answer }
 const TOD: Record<string, string> = { open: 'Opening bell', morning: 'Morning', midday: 'Midday', late: 'Late' };
 
 function Breakdown({ rows, label, keyOf, fmt }: { rows: Row[]; label: string; keyOf: (r: Row) => string; fmt?: (k: string) => string }) {
@@ -23,20 +23,23 @@ function Breakdown({ rows, label, keyOf, fmt }: { rows: Row[]; label: string; ke
   );
 }
 
-interface Props { trades: Map<number, Trade>; answers: Record<string, Answer>; onClose: () => void; onOpen: (id: number) => void; onImport: (a: Record<string, Answer>) => number }
+interface Props { trades: Map<number, TradeIndex>; answers: Record<string, Answer>; skips: Record<string, number>; onClose: () => void; onOpen: (id: number) => void; onImport: (a: Record<string, Answer>, skips?: Record<string, number>) => number }
 
-export function History({ trades, answers, onClose, onOpen, onImport }: Props) {
+export function History({ trades, answers, skips, onClose, onOpen, onImport }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const rows: Row[] = Object.keys(answers).map((id) => ({ t: trades.get(+id)!, a: answers[id] })).filter((r) => r.t && r.a.g);
   rows.sort((x, y) => (y.a.ts || 0) - (x.a.ts || 0) || y.t.id - x.t.id);
+  const graded = rows.filter((r) => r.a.sizeOk != null), sizeRight = graded.filter((r) => r.a.sizeOk).length;
+  const same = rows.filter((r) => r.a.match).length;
+  const skipped = Object.keys(skips).map((id) => trades.get(+id)).filter((t): t is TradeIndex => !!t && !answers[t.id]);
 
   const exportProgress = () => {
-    const u = URL.createObjectURL(new Blob([JSON.stringify({ v: 1, a: answers }, null, 1)], { type: 'application/json' }));
+    const u = URL.createObjectURL(new Blob([JSON.stringify({ v: 2, a: answers, skips }, null, 1)], { type: 'application/json' }));
     const el = document.createElement('a'); el.href = u; el.download = 'bear-trainer-progress.json'; document.body.appendChild(el); el.click(); el.remove();
     setTimeout(() => URL.revokeObjectURL(u), 1000);
   };
   const importProgress = async (f: File) => {
-    try { const d = JSON.parse(await f.text()); if (!d || !d.a) throw new Error(); alert('Imported ' + onImport(d.a) + ' trades.'); }
+    try { const d = JSON.parse(await f.text()); if (!d || !d.a) throw new Error(); alert('Imported ' + onImport(d.a, d.skips || {}) + ' trades.'); }
     catch { alert("That file doesn't look like a Bear Trainer export."); }
   };
 
@@ -44,7 +47,17 @@ export function History({ trades, answers, onClose, onOpen, onImport }: Props) {
     <div id="history">
       <div className="box">
         <div className="row" style={{ justifyContent: 'space-between', marginTop: 0 }}><h3 style={{ margin: 0 }}>Your history</h3><button id="bHistClose" onClick={onClose}>Close<kbd>Esc</kbd></button></div>
-        <div id="histSummary"><div className="small">{rows.length ? `${rows.length} trades played. Average exits count only trades where you picked Bear's side (* = not counted). Your progress is saved in this browser only, so use Export to back it up or move it to another device.` : 'No trades yet.'}</div></div>
+        <div id="histSummary">
+          {rows.length ? (
+            <div className="stats-line">
+              <span><b>{rows.length}</b> played</span>
+              <span><b>{same}/{rows.length}</b> same side as Bear</span>
+              <span><b>{sizeRight}/{graded.length}</b> size right{rows.length > graded.length ? <span className="small"> ({rows.length - graded.length} not graded: Swing or note trades have no Daytrade/Lotto label)</span> : null}</span>
+              <span><b>{skipped.length}</b> skipped</span>
+            </div>
+          ) : <div className="small">No trades yet.</div>}
+          <div className="small">Average exits count only trades where you picked Bear's side (* = not counted). Your progress is saved in this browser only, so use Export to back it up or move it to another device.</div>
+        </div>
         {rows.length > 0 && (
           <div className="bd" id="histBreak">
             <Breakdown rows={rows} label="Setup" keyOf={(r) => r.t.setup} />
@@ -57,19 +70,26 @@ export function History({ trades, answers, onClose, onOpen, onImport }: Props) {
         <table>
           <thead><tr><th>Date</th><th>Trade</th><th>Your call</th><th className="hidemob">Size</th><th>Your exit</th><th className="hidemob">Bear's 1st trim</th><th className="hidemob">Note</th></tr></thead>
           <tbody id="histList">
-            {rows.map(({ t, a }) => { const tr = postedTrims(t), hasExit = typeof a.exit === 'number'; return (
+            {rows.map(({ t, a }) => { const hasExit = typeof a.exit === 'number'; return (
               <tr key={t.id} data-id={t.id} onClick={() => onOpen(t.id)}>
                 <td>{t.d.slice(2)} {t.hm}</td>
                 <td>{t.tk} {t.r} <span className="small">{t.setup}</span></td>
                 <td>{a.g === 'C' ? 'Calls' : 'Puts'} {a.match ? <span className="good">✓</span> : <span className="bad">✗</span>}</td>
-                <td className="hidemob">{a.size ? <>{a.size} {a.sizeOk ? <span className="good">✓</span> : <span className="bad">✗</span>}</> : '–'}</td>
+                <td className="hidemob">{!sizeable(t) ? <span className="dim" title="Bear didn't label this Daytrade or Lotto, so size isn't graded">n/a</span> : a.size ? <>{a.size} {a.sizeOk ? <span className="good">✓</span> : <span className="bad">✗</span>}</> : '–'}</td>
                 <td className={hasExit ? (a.match ? tone(a.exit!) : 'dim') : ''} title={a.match ? undefined : "On Bear's side; not counted in your average"}>{hasExit ? pct(a.exit!) + (a.match ? '' : '*') : '–'}</td>
-                <td className="hidemob">{tr.length ? pct(tr[0]) : '–'}</td>
+                <td className="hidemob">{t.t1 != null ? pct(t.t1) : '–'}</td>
                 <td className="hidemob small">{(a.note || '').slice(0, 60)}</td>
               </tr>
             ); })}
           </tbody>
         </table>
+        {skipped.length > 0 && (
+          <div id="skipList" style={{ marginTop: 14 }}>
+            <h3 style={{ marginBottom: 4 }}>Skipped ({skipped.length})</h3>
+            <div className="small">Bear took these; you passed. Set Show to "Ones I skipped" to try them again.
+              {' '}{(() => { const c: Record<string, number> = {}; skipped.forEach((t) => { c[t.setup] = (c[t.setup] || 0) + 1; }); return 'By setup: ' + Object.entries(c).map(([k, v]) => k + ' ' + v).join(', ') + '.'; })()}</div>
+          </div>
+        )}
         <div className="row" style={{ marginTop: 14 }}>
           <button id="bExport" onClick={exportProgress}>Export progress</button>
           <button id="bImport" onClick={() => fileRef.current?.click()}>Import progress</button>

@@ -4,7 +4,7 @@ import { CHART_STOP } from '../types';
 import { aggBars, rsi } from './indicators';
 import { entrySwing, swingBreakMinute } from './levels';
 import { findDivergences } from './divergence';
-import { bearStyle, firstTouch, lessonLines } from './trade';
+import { bearStyle, fade4hStat, firstTouch, lessonLines } from './trade';
 
 const T0 = 1_700_000_100; // entry time (s); bar index of its 5m bar = floor(T0/300)
 function trade(over: Partial<Trade> = {}): Trade {
@@ -31,6 +31,15 @@ describe('entry swing stop', () => {
     expect(m).toBe(Math.ceil((barEnd - T0) / 60));
   });
   it('returns null when it never breaks', () => expect(swingBreakMinute(S, trade(), 90)).toBeNull());
+  it("ignores the close of the candle Bear entered in", () => {
+    // the entry candle (4th bar) closes at 95, below the 97 swing; the next one closes back above
+    const E = series5([[98, 101, 100], [97, 100, 99], [99, 102, 101], [94, 99, 95], [96, 99, 98], [95, 97, 96.5]], 3);
+    // entry 4 minutes into that candle, as most of his entries are
+    const late = trade({ t: T0 + 240 });
+    const m = swingBreakMinute(E, late, 97)!;
+    expect(m).toBe(Math.ceil(((Math.floor(T0 / 300) + 3) * 300 - late.t) / 60)); // the last bar (11 min), not the entry candle (1 min)
+    expect(m).toBe(11);
+  });
   it('the chart stop exits at that minute; a % stop ignores it', () => {
     const t = trade({ path: Array.from({ length: 30 }, (_, i) => [i + 1, 100 - i] as [number, number]) });
     expect(firstTouch(t, 0, 30, { t: 0, s: CHART_STOP }, 7)).toMatchObject({ m: 7, why: 'stop' });
@@ -73,5 +82,19 @@ describe('1-minute series', () => {
     const B = aggBars(S, 6 * 60, 5);
     expect(B.c).toEqual([5, 6]); expect(B.h[0]).toBe(9); expect(B.l[0]).toBe(0); expect(B.t).toEqual([0, 300]);
     expect(aggBars(S, 3 * 60, 1).c).toEqual([1, 2, 3]); // only bars completed by the cursor
+  });
+});
+
+describe('4h band rule, as he actually traded it', () => {
+  const b4 = (rsi: number): [number, number, number, number] => [rsi, 50, 70, 30];
+  it('counts how often he went against a 4h RSI outside its bands', () => {
+    const f = fade4hStat([{ b4: b4(80), r: 'P' }, { b4: b4(80), r: 'C' }, { b4: b4(20), r: 'C' }, { b4: b4(50), r: 'P' }, { b4: null, r: 'C' }]);
+    expect(f).toEqual({ n: 3, against: 2 });
+  });
+  it('the lesson reports the playbook rule and what he did', () => {
+    const L = lessonLines(trade({ r: 'P', b4: b4(80) }), null, {}, { n: 10, against: 7 }).join(' ');
+    expect(L).toContain('playbook says');
+    expect(L).toContain('about 70%');
+    expect(L).toContain('context, not a filter');
   });
 });

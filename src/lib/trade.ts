@@ -2,7 +2,7 @@ import type { ExitPlan, RsiState, Size, Trade } from '../types';
 import { CHART_STOP } from '../types';
 import type { Divergence } from './divergence';
 
-export const sizeable = (t: Trade) => t.setup === 'Daytrade' || t.setup === 'Lotto';
+export const sizeable = (t: { setup: string }) => t.setup === 'Daytrade' || t.setup === 'Lotto';
 export const sideName = (s: string) => (s === 'C' ? 'calls' : 'puts');
 export const maxStep = (t: Trade) => t.path[t.path.length - 1][0];
 
@@ -57,15 +57,31 @@ export function bearStyle(t: Trade, swingBreakM?: number | null): { r: number; t
 
 /** Short teaching notes for the results panel (HTML with <b> only; no user content). */
 export interface ChartFacts { div15?: Divergence[]; div5?: Divergence[]; swing?: number | null; swingBreakM?: number | null }
+/** How often Bear traded against a 4h RSI outside its bands, across all trades. */
+export interface FadeStat { n: number; against: number }
+
+/** Counts, over the trade list, how often Bear went against a 4h RSI that was outside its bands. */
+export function fade4hStat(trades: { b4: RsiState | null; r: string }[]): FadeStat {
+  let n = 0, against = 0;
+  for (const t of trades) {
+    if (!t.b4 || (t.b4[0] <= t.b4[2] && t.b4[0] >= t.b4[3])) continue;
+    n++; if ((t.b4[0] > t.b4[2]) !== (t.r === 'C')) against++;
+  }
+  return { n, against };
+}
+const share = (f: FadeStat) => Math.round((100 * f.against) / Math.max(1, f.n));
 
 const fmtLevel = (v: number) => v.toFixed(v > 2000 ? 1 : 2);
 
-export function lessonLines(t: Trade, r15: RsiState | null, facts: ChartFacts = {}): string[] {
+export function lessonLines(t: Trade, r15: RsiState | null, facts: ChartFacts = {}, fade?: FadeStat): string[] {
   const L: string[] = [];
   const isCall = t.r === 'C';
   if (t.b4 && (t.b4[0] > t.b4[2] || t.b4[0] < t.b4[3])) {
     const trendUp = t.b4[0] > t.b4[2];
-    L.push('The 4h RSI was <b>' + (trendUp ? 'above its upper band' : 'below its lower band') + '</b>. His rule: don\'t fight that trend until it closes back inside. ' + (trendUp === isCall ? 'He traded with it.' : 'He traded against it, so treat this as a scalp.'));
+    const usual = fade ? ' (he does in about ' + share(fade) + '% of trades like this)' : '';
+    const rare = fade ? ' (he only does in about ' + (100 - share(fade)) + '% of trades like this)' : '';
+    L.push('The 4h RSI was <b>' + (trendUp ? 'above its upper band' : 'below its lower band') + '</b>. The playbook says don\'t fight that trend until it closes back inside, ' +
+      (trendUp === isCall ? 'and here he traded with it' + rare + '.' : 'but here he traded against it, fading the stretched 4h' + usual + '. In practice this rule is context, not a filter.'));
   } else if (t.b4) {
     const withBias = (t.b4[0] >= t.b4[1]) === isCall;
     L.push(withBias ? 'Bear traded <b>with</b> the 4h bias (RSI ' + (isCall ? 'above' : 'below') + ' its median).' : 'Bear traded <b>against</b> the 4h bias. By his checklist that makes it a scalp, so expect quick trims, not a runner.');
@@ -74,8 +90,8 @@ export function lessonLines(t: Trade, r15: RsiState | null, facts: ChartFacts = 
     if (r15[0] < r15[3]) L.push('The 15m RSI was <b>below its lower band</b>, which he reads as a temporary bottom. ' + (isCall ? 'He bought calls into it, a band fade.' : 'He still took puts, so he saw continuation.'));
     else if (r15[0] > r15[2]) L.push('The 15m RSI was <b>above its upper band</b>, which he reads as a temporary top. ' + (!isCall ? 'He bought puts into it, a band fade.' : 'He still took calls, so he saw continuation.'));
     else {
-      const below = r15[0] < r15[1], fade = below === isCall;
-      L.push('The 15m RSI was ' + (below ? 'below' : 'above') + ' its median and inside the bands. ' + (fade ? (isCall ? 'He bought the dip, expecting RSI to reclaim the median.' : 'He shorted the pop, expecting RSI to lose the median.') : 'He traded in the direction of the 15m.'));
+      const below = r15[0] < r15[1], isFade = below === isCall;
+      L.push('The 15m RSI was ' + (below ? 'below' : 'above') + ' its median and inside the bands. ' + (isFade ? (isCall ? 'He bought the dip, expecting RSI to reclaim the median.' : 'He shorted the pop, expecting RSI to lose the median.') : 'He traded in the direction of the 15m.'));
     }
   }
   const divNote = (tf: string, d?: Divergence[]) => {

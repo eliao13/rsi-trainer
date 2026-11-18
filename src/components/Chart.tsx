@@ -6,6 +6,7 @@ import { fmtET, fmtMD } from '../lib/format';
 
 interface Props {
   trade: Trade | null;
+  message?: string; // shown instead of a blank chart while data loads
   series: Series | null; // bars for the shown timeframe (5-minute series, or 1-minute for tf 1)
   step: number; tf: number; stage: Stage; userExit: UserExit | null;
   swing?: number | null; // entry swing level (shown after answering)
@@ -28,6 +29,15 @@ export function Chart(props: Props) {
     ro.observe(cv); return () => ro.disconnect();
   }, []);
   useEffect(() => { if (ref.current) geo.current = draw(ref.current, props, hover); }); // cheap enough to redraw every render
+  // animate the loading bar only while a loading message is up
+  const loadingMsg = props.message && !props.trade ? props.message : undefined;
+  useEffect(() => {
+    if (!loadingMsg) return;
+    let id = 0;
+    const loop = () => { if (ref.current) draw(ref.current, { ...props, trade: null }, null); id = requestAnimationFrame(loop); };
+    id = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(id);
+  }, [loadingMsg]); // eslint-disable-line react-hooks/exhaustive-deps
   void size;
 
   const onPointer = (e: React.PointerEvent) => {
@@ -39,13 +49,19 @@ export function Chart(props: Props) {
   return <canvas id="chart" ref={ref} onPointerMove={onPointer} onPointerDown={onPointer} onPointerLeave={() => setHover(null)} />;
 }
 
-function draw(cv: HTMLCanvasElement, { trade: cur, series, step, tf, stage, userExit, swing, divs }: Props, hover: number | null): Geo | null {
+function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, stage, userExit, swing, divs }: Props, hover: number | null): Geo | null {
   const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
   cv.width = W * dpr; cv.height = H * dpr;
   const x = cv.getContext('2d')!; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
   if (!cur || !series || !series.t.length) {
-    x.fillStyle = '#8b93a7'; x.font = '14px system-ui';
-    x.fillText(cur ? (series ? 'No chart data for this day.' : 'Loading chart…') : '', 20, 30);
+    const msg = message || (cur ? (series ? 'No chart data for this day.' : 'Loading chart…') : '');
+    x.fillStyle = '#8b93a7'; x.font = '15px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(msg, W / 2, H / 2);
+    if (msg) { // a small pulsing bar so it reads as loading, not broken
+      const ph = (Date.now() / 600) % 1, bw0 = Math.min(160, W * 0.4);
+      x.fillStyle = '#262c3a'; x.fillRect(W / 2 - bw0 / 2, H / 2 + 18, bw0, 3);
+      x.fillStyle = '#5b8def'; x.fillRect(W / 2 - bw0 / 2 + ph * (bw0 - 40), H / 2 + 18, 40, 3);
+    }
     return null;
   }
   const entrySec = cur.t, cursor = entrySec + step * 60;
@@ -127,7 +143,14 @@ function draw(cv: HTMLCanvasElement, { trade: cur, series, step, tf, stage, user
   }
   if (userExit && stage !== 'guess') {
     const xu = xe + ((userExit.m * 60) / barSec) * bw;
-    if (xu > padL) { x.strokeStyle = '#fff'; x.setLineDash([2, 3]); x.beginPath(); x.moveTo(xu, top); x.lineTo(xu, top + hP); x.stroke(); x.setLineDash([]); x.fillStyle = '#fff'; x.fillText('You sold', xu + 4, top + 22); }
+    if (xu > padL) {
+      x.strokeStyle = '#fff'; x.setLineDash([2, 3]); x.beginPath(); x.moveTo(xu, top); x.lineTo(xu, top + hP); x.stroke(); x.setLineDash([]);
+      // label with the time and result, kept on screen
+      const lbl = 'Sold ' + fmtET.format(new Date((entrySec + userExit.m * 60) * 1000)) + ' ' + (userExit.p >= 0 ? '+' : '') + userExit.p.toFixed(0) + '%';
+      const lw = x.measureText(lbl).width + 8, lx = Math.min(xu + 4, W - padR - lw - 2), ly = top + 24;
+      x.fillStyle = 'rgba(11,14,20,.85)'; x.fillRect(lx - 2, ly - 8, lw, 16);
+      x.fillStyle = userExit.p >= 0 ? '#2ebd85' : '#f6465d'; x.fillText(lbl, lx + 2, ly);
+    }
   }
   // RSI panel
   const R = rsi(B.c), bb = bands(R), yr = (v: number) => yR0 + ((100 - v) / 100) * hR;

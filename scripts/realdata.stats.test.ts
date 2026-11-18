@@ -9,13 +9,16 @@ import { bearStyle, postedTrims } from '../src/lib/trade';
 
 it.runIf(process.env.STATS)('real-data stats', () => {
   const load = (f: string) => { const w: Record<string, unknown> = {}; new Function('window', fs.readFileSync('public/data/' + f, 'utf8'))(w); return w; };
-  const T = (load('trades.js').BEAR_TRADES as Trade[]);
+  const index = load('trades_index.js').BEAR_TRADES as Trade[];
+  const detail: Record<string, Record<string, [Trade['path'], Trade['ev']]>> = {};
+  for (const f of fs.readdirSync('public/data/detail')) Object.assign(detail, (() => { const w: Record<string, unknown> = {}; new Function('window', fs.readFileSync('public/data/detail/' + f, 'utf8'))(w); return w.BEAR_DETAIL as object; })());
+  const T = index.map((t) => { const d = detail[t.d.slice(0, 7)][t.id]; return { ...t, path: d[0], ev: d[1] }; });
   const bars: Record<string, { scale: number; t: number[]; o: number[]; h: number[]; l: number[]; c: number[] }> = {};
-  for (const f of fs.readdirSync('public/data').filter((f: string) => f.startsWith('bars_'))) Object.assign(bars, (load(f).BEAR_BARS as object));
+  for (const f of fs.readdirSync('public/data/bars')) Object.assign(bars, (load('bars/' + f).BEAR_BARS as object));
   const cache: Record<string, Series> = {};
   const seriesFor = (t: Trade): Series => {
     const yr = +t.d.slice(0, 4), key = t.ci + yr;
-    if (!cache[key]) { const s: Series = { t: [], o: [], h: [], l: [], c: [] }; for (const y of [yr - 1, yr]) { const p = bars[t.ci + '_' + y]; if (!p) continue; for (let i = 0; i < p.t.length; i++) { s.t.push(p.t[i]); s.o.push(p.o[i] / p.scale); s.h.push(p.h[i] / p.scale); s.l.push(p.l[i] / p.scale); s.c.push(p.c[i] / p.scale); } } cache[key] = s; }
+    if (!cache[key]) { const s: Series = { t: [], o: [], h: [], l: [], c: [] }; for (const key of Object.keys(bars).filter((k) => k.startsWith(t.ci + '_' + (yr - 1)) || k.startsWith(t.ci + '_' + yr)).sort()) { const p = bars[key]; for (let i = 0; i < p.t.length; i++) { s.t.push(p.t[i]); s.o.push(p.o[i] / p.scale); s.h.push(p.h[i] / p.scale); s.l.push(p.l[i] / p.scale); s.c.push(p.c[i] / p.scale); } } cache[key] = s; }
     const s = cache[key]; let j = s.t.findIndex((x) => x * 300 >= t.t + 86400); if (j < 0) j = s.t.length; const i = Math.max(0, j - 2000);
     return { t: s.t.slice(i, j), o: s.o.slice(i, j), h: s.h.slice(i, j), l: s.l.slice(i, j), c: s.c.slice(i, j) };
   };

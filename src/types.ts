@@ -35,7 +35,11 @@ export interface Trade {
   tod: string; // open | morning | midday | late
   b4: RsiState | null; // 4-hour RSI at entry
   bd: RsiState | null; // daily RSI at entry
+  t1?: number | null; // Bear's first posted trim %, if any (in the index, so History works without detail)
 }
+
+/** A trade as listed in the index: everything except per-minute prices and messages, loaded on demand. */
+export type TradeIndex = Omit<Trade, 'path' | 'ev'>;
 
 /** Price bars; `t` is the bar index in units of `base` minutes (unix seconds / (base*60)). */
 export interface Series {
@@ -83,13 +87,15 @@ export const CHART_STOP = -1;
 
 export interface SavedState {
   a: Record<string, Answer>;
+  skips?: Record<string, number>; // trade id -> when you skipped it
   f?: Filters | null;
   plan?: ExitPlan;
 }
 
 declare global {
   interface Window {
-    BEAR_TRADES?: Trade[];
+    BEAR_TRADES?: TradeIndex[];
+    BEAR_DETAIL?: Record<string, Record<string, [Trade['path'], Trade['ev']]>>;
     BEAR_M1?: Record<string, { scale: number; dt: number[]; o: number[]; h: number[]; l: number[]; c: number[] }>;
     BEAR_M1_KEYS?: string[];
     BEAR_BARS?: Record<string, { scale: number; t: number[]; o: number[]; h: number[]; l: number[]; c: number[] }>;

@@ -16,13 +16,15 @@ export function entrySwing(S: Series | null, t: Trade, candles = 3): number | nu
 /**
  * Minutes after entry when a 5-minute candle first *closes* beyond the swing
  * ("you need a candle close"), or null if it held until the trade's last minute.
+ * The candle Bear entered in doesn't count: 38% of entries come in its last two
+ * minutes, so its close is not a candle he traded against.
  */
 export function swingBreakMinute(S: Series | null, t: Trade, level: number | null): number | null {
   if (!S || level == null) return null;
   const last = t.path[t.path.length - 1][0];
   for (let i = 0; i < S.t.length; i++) {
     const end = (S.t[i] + 1) * 300; // bar close time, seconds
-    if (end <= t.t) continue;
+    if (S.t[i] * 300 < t.t) continue; // before entry, or the entry candle itself
     const m = Math.ceil((end - t.t) / 60);
     if (m > last) break;
     if (t.r === 'C' ? S.c[i] < level : S.c[i] > level) return m;

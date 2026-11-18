@@ -21,6 +21,27 @@ if not os.path.isdir(os.path.join(RAW_DIR,'bear-backtest','raw')):
     sys.exit(f"Can't find bear-backtest/raw in {RAW_DIR}. Put this repo next to it, or pass --raw <folder>.")
 os.chdir(RAW_DIR)
 json_dump=lambda o: json.dumps(o,separators=(',',':'))
+
+# The app loads a small index first (trades_index.js) and each trade's per-minute option
+# prices and Bear's messages on demand, from detail/YYYY-MM.js.
+def write_trades(trades):
+    idx=[]; months=collections.defaultdict(dict)
+    for t in trades:
+        rest={k:v for k,v in t.items() if k not in ('path','ev')}
+        first=next((e['p'] for e in t['ev'] if e['k']=='trim' and e.get('p') is not None),None)
+        rest['t1']=first; idx.append(rest)
+        months[t['d'][:7]][str(t['id'])]=[t['path'],t['ev']]
+    open(os.path.join(DATA_DIR,'trades_index.js'),'w',encoding='utf-8').write('window.BEAR_TRADES='+json_dump(idx)+';')
+    os.makedirs(os.path.join(DATA_DIR,'detail'),exist_ok=True)
+    for m,o in months.items():
+        open(os.path.join(DATA_DIR,'detail',f'{m}.js'),'w',encoding='utf-8').write(f'(window.BEAR_DETAIL=window.BEAR_DETAIL||{{}})["{m}"]='+json_dump(o)+';')
+    print('trades',len(idx),'index',round(os.path.getsize(os.path.join(DATA_DIR,'trades_index.js'))/1e6,2),'MB,',len(months),'month files')
+
+def read_trade_index():
+    f=os.path.join(DATA_DIR,'trades_index.js')
+    if not os.path.isfile(f): sys.exit(f"No trades file at {DATA_DIR}. Run without --m1-only first (or git pull this repo).")
+    src=open(f,encoding='utf-8').read()
+    return json.loads(src[src.index('['):src.rindex(']')+1])
 OPT={'QQQ':'QQQUSUSD','SPY':'SPYUSUSD','SPX':'USA500IDXUSD','IWM':'IWMUSUSD'}
 CHART={'QQQ':'USATECHIDXUSD','SPY':'USA500IDXUSD','SPX':'USA500IDXUSD','IWM':'IWMUSUSD'}
 LABEL={'USATECHIDXUSD':'NDQ100','USA500IDXUSD':'SPX500','IWMUSUSD':'IWM'}
@@ -78,10 +99,7 @@ def export_m1(trades, out_dir=DATA_DIR):
     open(os.path.join(out_dir,'m1_index.js'),'w',encoding='utf-8').write('window.BEAR_M1_KEYS='+json_dump(sorted(keys))+';')
 
 if '--m1-only' in sys.argv:
-    if not os.path.isfile(os.path.join(DATA_DIR,'trades.js')):
-        sys.exit(f"No trades file at {DATA_DIR}. Run without --m1-only first (or git pull this repo).")
-    src=open(os.path.join(DATA_DIR,'trades.js'),encoding='utf-8').read()
-    export_m1(json.loads(src[src.index('['):src.rindex(']')+1]))
+    export_m1(read_trade_index())
     sys.exit(0)
 
 def ncdf(x): return 0.5*(1+math.erf(x/math.sqrt(2)))
@@ -202,12 +220,12 @@ B=[o for o in out if o['bd']]
 grp([o for o in B if (o['r']=='C')==(o['bd'][0]>o['bd'][1])],'with daily side')
 grp([o for o in B if (o['r']=='C')!=(o['bd'][0]>o['bd'][1])],'against daily side')
 
-open(os.path.join(DATA_DIR,'trades.js'),'w',encoding='utf-8').write('window.BEAR_TRADES='+json_dump(out)+';')
-print('trades',len(out),round(os.path.getsize(os.path.join(DATA_DIR,'trades.js'))/1e6,1),'MB', 'with img',sum(1 for o in out if o['img']))
-# 5-min bars per chart instrument per year (only days needed)
+write_trades(out)
+print('with img',sum(1 for o in out if o['img']))
+# 5-min bars per chart instrument per UTC month (only days needed), in data/bars/
 missing=collections.Counter()
 for inst,days in need.items():
-    agg=collections.defaultdict(dict)  # year -> {bucket: [o,h,l,c]}
+    agg=collections.defaultdict(dict)  # 'YYYY-MM' -> {bucket: [o,h,l,c]}
     for d in sorted(days):
         if d.weekday()>4: 
             rec=day_raw(inst,d)  # sunday evening session may exist; skip if none
@@ -216,7 +234,7 @@ for inst,days in need.items():
             if d.weekday()<5: missing[inst]+=1
             continue
         base=int(datetime(d.year,d.month,d.day,tzinfo=UTC).timestamp())
-        A=agg[d.year]
+        A=agg[d.strftime('%Y-%m')]
         for tt,o,c,l,h,v in rec:
             if v<=0: continue
             bkt=(base+tt)//300
@@ -226,11 +244,12 @@ for inst,days in need.items():
                 if h>x[1]: x[1]=h
                 if l<x[2]: x[2]=l
                 x[3]=c
-    for yr,A in agg.items():
+    os.makedirs(os.path.join(DATA_DIR,'bars'),exist_ok=True)
+    for mon,A in agg.items():
         ks=sorted(A); div=100 if inst=='USATECHIDXUSD' else 10   # store price*10 (NDX) or *100
         obj={'t':ks,'o':[A[k][0]//div for k in ks],'h':[A[k][1]//div for k in ks],'l':[A[k][2]//div for k in ks],'c':[A[k][3]//div for k in ks],'scale':1000//div}
-        fn=os.path.join(DATA_DIR,f'bars_{LABEL[inst]}_{yr}.js')
-        open(fn,'w',encoding='utf-8').write(f'(window.BEAR_BARS=window.BEAR_BARS||{{}})["{LABEL[inst]}_{yr}"]='+json_dump(obj)+';')
+        key=f'{LABEL[inst]}_{mon}'; fn=os.path.join(DATA_DIR,'bars',f'{key}.js')
+        open(fn,'w',encoding='utf-8').write(f'(window.BEAR_BARS=window.BEAR_BARS||{{}})["{key}"]='+json_dump(obj)+';')
         print(fn,len(ks),round(os.path.getsize(fn)/1e6,2),'MB')
 print('missing weekdays',dict(missing))
 
