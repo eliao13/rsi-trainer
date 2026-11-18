@@ -2,6 +2,14 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.4.0
+- Desktop: the chart sizes to the window instead of a fixed 560px, so there's no empty space under it while playing
+- While playing, the chart shows one hour past the replay cursor (growing as you step) instead of a mostly empty rest of day; the full day appears at review
+- Review: "How it played out" sits under the chart; your journal and Bear's chart screenshot sit beside his messages, so the two columns balance
+- "How it played out": explanations sit on their own full-width line under each number instead of ragged right-aligned text
+- Tablets (701–1000px): answer bar pinned to the bottom, filters behind the Filters button, chart sized to the screen
+- Replay controls stay on one row on desktop
+
 ## 2.3.0
 - Version and build shown in the header and History, and included in progress exports
 - Clicking Calls or Puts before picking a size now says "Pick Daytrade or Lotto first" until you do

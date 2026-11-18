@@ -74,7 +74,10 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
   let i0: number, slots: number;
   if (wide) { // whole session: history on the left, empty space for the rest of the day
     i0 = Math.max(0, ie - (tf === 5 ? 150 : 110));
-    slots = ie - i0 + 1 + Math.ceil((closeSec - (B.t[ie] + barSec)) / barSec) + 2;
+    // future space: the rest of the day at review; while playing, one hour past the replay cursor
+    const restOfDay = Math.ceil((closeSec - (B.t[ie] + barSec)) / barSec) + 2;
+    const ahead = Math.ceil((step * 60 + 3600) / barSec) + 2;
+    slots = ie - i0 + 1 + (stage === 'done' ? restOfDay : Math.min(restOfDay, ahead));
   } else { // phones: fixed candle width, window slides with the replay
     slots = Math.max(30, Math.floor((W - padL - padR) / (tf === 1 && W >= 700 ? 6 : 4.5)));
     i0 = Math.max(0, nb + (stage === 'guess' ? 6 : 4) - slots);

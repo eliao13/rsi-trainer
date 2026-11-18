@@ -14,7 +14,7 @@ import { Chart } from './components/Chart';
 import { BiasPanel } from './components/BiasPanel';
 import { ActionBar } from './components/ActionBar';
 import { TradePanel } from './components/TradePanel';
-import { Results } from './components/Results';
+import { Journal, Results } from './components/Results';
 import { History } from './components/History';
 import { ChartsDialog } from './components/ChartsDialog';
 
@@ -214,6 +214,7 @@ export function App() {
     <>
       <Header filters={filters} onFilter={setFilters} answers={saved.a} chartCount={chartCount} onHistory={() => setOverlay('history')} onCharts={() => setOverlay('charts')} />
       <main>
+        <div className="leftcol">
         <section className="box">
           <div id="head">
             {headTrade ? <><span className="big">{headTrade.tk}</span><span>{fmtDay.format(new Date(headTrade.t * 1000))} · {headTrade.hm} ET</span>{!round?.review && <span className="dim hidemob">{poolSize} trades in this set</span>}</>
@@ -224,14 +225,18 @@ export function App() {
           <Chart trade={t || null} message={loadingMsg} series={tf === 1 ? m1 : series} step={round?.step || 0} tf={tf} stage={round?.stage || 'guess'} userExit={round?.userExit || null}
             swing={facts.swing} divs={tf === 5 ? facts.div5 : tf === 15 ? facts.div15 : undefined} />
         </section>
-        <aside>
+        {round && t && round.stage === 'done' && (<Results trade={t} facts={facts} fade={fade} guess={round.guess} size={round.size} userExit={round.userExit} answer={saved.a[t.id]} review={round.review} r15={r15}
+                sessionLosses={sessionLosses} chartsVersion={chartsVersion} onNote={(note) => saved.a[t.id] && patchAnswer(t.id, { note })} onLoadCharts={() => setOverlay('charts')} onChartSaved={() => countCharts().then(setChartCount)} />)}
+        </div>
+        <aside className={round ? 'stage-' + round.stage : ''}>
           {round && t ? (
             <>
               <ActionBar trade={t} stage={round.stage} step={round.step} guess={round.guess} size={round.size} userExit={round.userExit} review={round.review}
                 flashSize={flashSize} plan={plan} tf={tf} onPlan={setPlan} onSize={pickSize} onAnswer={answer} onSkip={skip} onAdvance={advance} onSell={sell} onNext={() => next()} />
               {round.stage !== 'guess' && <TradePanel key={t.id} trade={t} step={round.step} stage={round.stage} />}
-              {round.stage === 'done' && <Results trade={t} facts={facts} fade={fade} guess={round.guess} size={round.size} userExit={round.userExit} answer={saved.a[t.id]} review={round.review} r15={r15}
-                sessionLosses={sessionLosses} chartsVersion={chartsVersion} onNote={(note) => saved.a[t.id] && patchAnswer(t.id, { note })} onLoadCharts={() => setOverlay('charts')} onChartSaved={() => countCharts().then(setChartCount)} />}
+              {round.stage === 'done' && <Journal trade={t} answer={saved.a[t.id]} review={round.review} sessionLosses={sessionLosses} chartsVersion={chartsVersion}
+                onNote={(note) => saved.a[t.id] && patchAnswer(t.id, { note })} onLoadCharts={() => setOverlay('charts')} onChartSaved={() => countCharts().then(setChartCount)} />}
+
               <BiasPanel b4={t.b4} bd={t.bd} r15={r15} r5={r5} loading={!series} fade={fade} />
             </>
           ) : !trades || pending ? (

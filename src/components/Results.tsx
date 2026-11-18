@@ -13,11 +13,12 @@ interface Props {
 
 const Pct = ({ v }: { v: number }) => <span className={tone(v)}>{pct(v)}</span>;
 
-export function Results({ trade: t, facts, fade, guess, size, userExit, answer: a, review, r15, sessionLosses, chartsVersion, onNote, onLoadCharts, onChartSaved }: Props) {
+export function Results({ trade: t, facts, fade, guess, size, userExit, answer: a, review, r15 }: Props) {
   const trims = postedTrims(t), closeP = pctAt(t, maxStep(t)), bs = bearStyle(t, facts.ready ? facts.swingBreakM : undefined, postedTrims(t)[0] ?? 23), wrong = !!guess && guess !== t.r;
   const mine = userExit || (review && a && typeof a.exit === 'number' ? { p: a.exit, m: a.exitM, why: a.exitWhy } : null);
   const why = mine?.why;
-  const rows: [React.ReactNode, React.ReactNode][] = [
+  // [label, value, optional explanation shown full-width under the row]
+  const rows: [React.ReactNode, React.ReactNode, React.ReactNode?][] = [
     ['Your call', guess ? <>{guess === 'C' ? 'Calls' : 'Puts'} {guess === t.r ? <span className="good">✓</span> : <span className="bad">✗</span>}</> : <span className="dim">Not answered</span>],
   ];
   rows.push(['Your size', sizeable(t)
@@ -36,10 +37,10 @@ export function Results({ trade: t, facts, fade, guess, size, userExit, answer: 
           {bestUpdate != null && (!trims.length || bestUpdate > Math.max(...trims)) ? <span style={{ fontWeight: 400 }}> · best update {pct(bestUpdate)}</span> : null}</>
       : <span className="dim">No trims or updates posted</span>],
     ['Estimates from the price model', ''],
-    ['Best the option reached', <><Pct v={t.mx} /> after {t.mxm} min{tookProfit && lastPost > 0 && t.mxm >= lastPost + 5 ? <div className="small" style={{ fontWeight: 400 }}>after his last post ({Math.round(lastPost)} min): what holding on would have paid, not what he got</div> : null}</>],
+    ['Best the option reached', <><Pct v={t.mx} /> after {t.mxm} min</>, tookProfit && lastPost > 0 && t.mxm >= lastPost + 5 ? 'This came after his last post (' + Math.round(lastPost) + ' min): what holding on would have paid, not what he got.' : undefined],
     ['Option at the close', <Pct v={closeP} />],
     ['Chart stop (5m close past entry swing)', !facts.ready ? <span className="dim">…</span> : facts.swingBreakM != null ? <><Pct v={pctAt(t, facts.swingBreakM)} /> after {facts.swingBreakM} min</> : 'Never hit'],
-    ['Rule-based exit (estimate)', <><Pct v={bs.r} /><div className="small" style={{ fontWeight: 400 }}>{bs.txt}</div></>],
+    ['Rule-based exit (estimate)', <Pct v={bs.r} />, bs.txt.charAt(0).toUpperCase() + bs.txt.slice(1) + '.'],
     [wrong ? <>Your exit on Bear's {sideName(t.r)}<div className="small">not counted: you picked the other side</div></> : 'Your exit',
       mine ? <><Pct v={mine.p} />{mine.m != null ? ' after ' + mine.m + ' min' : ''}{why === 'target' ? <span className="small"> (target)</span> : why === 'stop' ? <span className="small"> (stop)</span> : null}</> : <>Held to the close <Pct v={closeP} /></>],
   );
@@ -53,14 +54,23 @@ export function Results({ trade: t, facts, fade, guess, size, userExit, answer: 
       <h3>How it played out</h3>
       <table id="sumTable"><tbody>{rows.map((r, i) => r[1] === ''
         ? <tr key={i} className="section"><td colSpan={2}>{r[0]}</td></tr>
-        : <tr key={i}><td className="dim">{r[0]}</td><td>{r[1]}</td></tr>)}</tbody></table>
+        : [<tr key={i} className={r[2] ? 'hasdetail' : undefined}><td className="dim">{r[0]}</td><td>{r[1]}</td></tr>,
+           r[2] ? <tr key={i + 'd'} className="detail"><td colSpan={2}>{r[2]}</td></tr> : null])}</tbody></table>
       {notes.length > 0 && <div id="modelNote" className="banner"><b>Model vs Bear:</b> {notes.join(' ')} Where they disagree, go by his posts.</div>}
       <div id="lesson" className="lesson">{lessonLines(t, r15, facts.ready ? facts : {}, fade).map((h, i) => <p key={i} dangerouslySetInnerHTML={{ __html: h }} />)}</div>
-      {!review && sessionLosses >= 2 && <div id="tilt" className="banner">That's {sessionLosses} losing trades this session. Bear's "2 lives" rule: after two losers, he stops for the day. Take a break before the next one?</div>}
-      <div className="lbl">Journal: what did you see, and what did you miss?</div>
+      <div className="small" style={{ marginTop: 8 }}>Option prices are model estimates from 1-minute index data, not real quotes.</div>
+    </div>
+  );
+}
+
+/** Beside Bear's messages at review: the "2 lives" reminder, your journal, and his chart for the trade. */
+export function Journal({ trade: t, answer: a, review, sessionLosses, chartsVersion, onNote, onLoadCharts, onChartSaved }: Pick<Props, 'trade' | 'answer' | 'review' | 'sessionLosses' | 'chartsVersion' | 'onNote' | 'onLoadCharts' | 'onChartSaved'>) {
+  return (
+    <div className="box" id="journalBox">
+      {!review && sessionLosses >= 2 && <div id="tilt" className="banner" style={{ marginTop: 0, marginBottom: 10 }}>That's {sessionLosses} losing trades this session. Bear's "2 lives" rule: after two losers, he stops for the day. Take a break before the next one?</div>}
+      <div className="lbl" style={{ marginTop: 0 }}>Journal: what did you see, and what did you miss?</div>
       <textarea id="note" placeholder="e.g. Missed the 15m bullish divergence into the daily level" value={a?.note || ''} onChange={(e) => onNote(e.target.value)} />
       <ChartImage trade={t} version={chartsVersion} onLoadCharts={onLoadCharts} onChartSaved={onChartSaved} />
-      <div className="small" style={{ marginTop: 8 }}>Option prices are model estimates from 1-minute index data, not real quotes.</div>
     </div>
   );
 }

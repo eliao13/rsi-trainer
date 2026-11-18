@@ -31,7 +31,7 @@ aside > .box { margin-bottom:12px; }
 .tf { display:flex; gap:6px; align-items:center; margin-bottom:8px; font-size:12px; color:var(--dim); flex-wrap:wrap; }
 .tf button { padding:3px 10px; font-size:12px; }
 .tf button.on { border-color:var(--accent); color:var(--accent); }
-canvas { width:100%; height:560px; display:block; border-radius:6px; background:#0b0e14; touch-action:pan-y; }
+canvas { width:100%; height:clamp(420px, calc(100vh - 250px), 900px); display:block; border-radius:6px; background:#0b0e14; touch-action:pan-y; }
 h3 { margin:0 0 8px; font-size:14px; }
 .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
 .lbl { font-size:12px; color:var(--dim); margin-top:6px; }
@@ -74,8 +74,33 @@ aside, section.box { min-width:0; }
 #imgModal { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:30; display:flex; align-items:center; justify-content:center; padding:10px; cursor:zoom-out; }
 #imgModal img { max-width:100%; max-height:100%; }
 
+/* left column: chart, then results at review; right column: actions, timeline, RSI */
+.leftcol { display:flex; flex-direction:column; gap:16px; min-width:0; }
+#sumTable tr.detail td { text-align:left; font-weight:400; color:var(--dim); font-size:12px; padding-top:0; }
+#sumTable tr.hasdetail td { border-bottom:none; padding-bottom:2px; }
+.stage-done #timeline { max-height:420px; }
+/* replay controls on one row everywhere */
+#aReplay .row:not(.plan) { flex-wrap:nowrap; gap:6px; }
+#aReplay .row:not(.plan) button { flex:1; padding:6px 4px; min-width:0; white-space:nowrap; }
+
 @media (max-width:1000px) {
   main { grid-template-columns:minmax(0,1fr); padding:10px; gap:10px; }
+  .leftcol { gap:10px; }
+  /* tablets and phones: answers pinned to the bottom, filters in a drawer, chart sized to the screen */
+  #filterToggle { display:inline-block; }
+  #filters { display:none; width:100%; order:5; }
+  #filters.open { display:flex; }
+  #filters label { flex:1 1 30%; }
+  kbd { display:none; }
+  canvas { height:clamp(300px, calc(100vh - 420px), 620px); height:clamp(300px, calc(100svh - 420px), 620px); }
+  #actions { position:fixed; left:0; right:0; bottom:0; z-index:10; margin:0 auto !important; max-width:760px; border-radius:12px 12px 0 0; border-bottom:none; box-shadow:0 -6px 20px rgba(0,0,0,.5); padding:10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  #actions h3, #actions .hint { display:none; }
+  #actions .row { margin:6px 0; }
+  #aReplay .row:not(.plan) { flex-wrap:nowrap; gap:6px; }
+  #aReplay .row:not(.plan) button { flex:1; padding:8px 2px; min-width:0; }
+  #actions .plan { margin:4px 0; flex-wrap:nowrap; }
+  #actions .plan select { flex:1; min-width:0; }
+  body { padding-bottom:190px; }
 }
 @media (max-width:700px) {
   header { padding:6px 10px; gap:6px 8px; }
@@ -84,27 +109,15 @@ aside, section.box { min-width:0; }
   #stats { margin-left:0; width:100%; justify-content:space-between; }
   #head { margin-bottom:4px; }
   .tf { margin-bottom:6px; }
-  #filterToggle { display:inline-block; }
-  #filters { display:none; width:100%; order:5; }
-  #filters.open { display:flex; }
   #filters label { flex:1 1 45%; }
+  #actions { max-width:none; }
   #stats { font-size:11px; }
   #stats b { font-size:14px; display:inline; margin-right:4px; }
   .tfnote { display:none; }
   canvas { height:clamp(240px, calc(100vh - 340px), 460px); height:clamp(240px, calc(100svh - 340px), 460px); }
   .box { padding:10px; }
-  /* the action panel becomes a bar pinned to the bottom of the screen */
-  #actions { position:fixed; left:0; right:0; bottom:0; z-index:10; margin:0 !important; border-radius:12px 12px 0 0; border-bottom:none; box-shadow:0 -6px 20px rgba(0,0,0,.5); padding:10px 12px calc(10px + env(safe-area-inset-bottom)); }
-  #actions h3, #actions .hint { display:none; }
-  #actions .row { margin:6px 0; }
   #actions #pnl { font-size:18px; }
-  #aReplay .row:not(.plan) { flex-wrap:nowrap; gap:6px; }
-  #aReplay .row:not(.plan) button { flex:1; padding:8px 2px; min-width:0; }
-  #actions .plan { margin:4px 0; }
-  #actions .plan { flex-wrap:nowrap; }
-  #actions .plan select { flex:1; min-width:0; }
   body { padding-bottom:170px; }
-  kbd { display:none; }
   #history { padding:8px; }
   .hidemob { display:none; }
 }
