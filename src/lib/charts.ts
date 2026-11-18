@@ -1,6 +1,6 @@
 import type { Trade } from '../types';
 
-// Bear's chart screenshots come from his paid channel, so they are never published with the
+// RSI Trader's chart screenshots come from his paid channel, so they are never published with the
 // site. They are imported from the user's device, or fetched from their private GitHub repo,
 // and cached in this browser's IndexedDB.
 

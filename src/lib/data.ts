@@ -22,7 +22,7 @@ export async function loadTrades(): Promise<TradeIndex[]> {
 }
 
 const full = new Map<number, Trade>(); // one object per trade, so identity checks stay stable
-/** A trade with its option-price path and Bear's messages, from its month's detail file. */
+/** A trade with its option-price path and RSI Trader's messages, from its month's detail file. */
 export async function loadTrade(t: TradeIndex): Promise<Trade> {
   const hit = full.get(t.id); if (hit) return hit;
   const month = t.d.slice(0, 7);

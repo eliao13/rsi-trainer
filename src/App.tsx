@@ -209,7 +209,7 @@ export function App() {
 
   if (loadError) return <div style={{ padding: 20 }} className="bad">Could not load the trade data. Check your connection and reload the page.</div>;
   const headTrade: TradeIndex | undefined = t || pending || undefined;
-  const loadingMsg = !trades ? "Loading Bear's trades…" : pending ? 'Loading trade…' : undefined;
+  const loadingMsg = !trades ? "Loading RSI Trader's trades…" : pending ? 'Loading trade…' : undefined;
   return (
     <>
       <Header filters={filters} onFilter={setFilters} answers={saved.a} chartCount={chartCount} onHistory={() => setOverlay('history')} onCharts={() => setOverlay('charts')} />
@@ -218,7 +218,7 @@ export function App() {
         <section className="box">
           <div id="head">
             {headTrade ? <><span className="big">{headTrade.tk}</span><span>{fmtDay.format(new Date(headTrade.t * 1000))} · {headTrade.hm} ET</span>{!round?.review && <span className="dim hidemob">{poolSize} trades in this set</span>}</>
-              : !trades && <span className="dim">Loading Bear's trades…</span>}
+              : !trades && <span className="dim">Loading RSI Trader's trades…</span>}
           </div>
           <div className="tf">Chart: {m1Avail && <button id="tf1" className={tf === 1 ? 'on' : ''} onClick={() => setTf(1)} title="1-minute bars for timing exits">1 min</button>}<button id="tf5" className={tf === 5 ? 'on' : ''} onClick={() => setTf(5)}>5 min</button><button id="tf15" className={tf === 15 ? 'on' : ''} onClick={() => setTf(15)}>15 min</button>
             <span className="tfnote">RSI 14 with Bollinger Bands on the RSI (34-bar median, 2σ). Tap or hover the chart to read a candle.</span></div>
@@ -240,7 +240,7 @@ export function App() {
               <BiasPanel b4={t.b4} bd={t.bd} r15={r15} r5={r5} loading={!series} fade={fade} />
             </>
           ) : !trades || pending ? (
-            <div className="box" id="loadingBox"><h3>{!trades ? "Loading Bear's trades…" : 'Loading trade…'}</h3><div className="small">{!trades ? 'About 200 KB. The first trade appears in a moment.' : 'Fetching his messages and the option prices for this day.'}</div></div>
+            <div className="box" id="loadingBox"><h3>{!trades ? "Loading RSI Trader's trades…" : 'Loading trade…'}</h3><div className="small">{!trades ? 'About 200 KB. The first trade appears in a moment.' : 'Fetching his messages and the option prices for this day.'}</div></div>
           ) : (
             <div className="box" id="emptyBox">No trades match these filters. Change a filter above, or set "Show" to "Any trade".</div>
           )}

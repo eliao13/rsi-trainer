@@ -10,11 +10,11 @@ export function Header({ filters, onFilter, answers, chartCount, onHistory, onCh
   const set = (k: keyof Filters) => (e: React.ChangeEvent<HTMLSelectElement>) => onFilter({ ...filters, [k]: e.target.value });
   return (
     <header>
-      <h1>Bear Trainer <span id="appVersion" title={'Built ' + (APP_BUILT ? new Date(APP_BUILT).toLocaleString() : 'locally') + '. Quote this when reporting a bug.'}>{VERSION_LABEL}</span></h1>
+      <h1>RSI Trainer <span id="appVersion" title={'Built ' + (APP_BUILT ? new Date(APP_BUILT).toLocaleString() : 'locally') + '. Quote this when reporting a bug.'}>{VERSION_LABEL}</span></h1>
       <div className="hbtns">
         <button id="filterToggle" onClick={() => setOpen(!open)}>Filters</button>
         <button id="bHistory" onClick={onHistory}>History<kbd>H</kbd></button>
-        <button id="bCharts" onClick={onCharts} title="Load Bear's chart screenshots from your device">{chartCount ? `Bear's charts (${chartCount})` : "Load Bear's charts"}</button>
+        <button id="bCharts" onClick={onCharts} title="Load RSI Trader's chart screenshots from your device">{chartCount ? `Charts (${chartCount})` : 'Load charts'}</button>
       </div>
       <div id="filters" className={open ? 'open' : ''}>
         <label>Entry time<select id="fTod" value={filters.fTod} onChange={set('fTod')}><option value="all">All times</option><option value="open">Opening bell (9:30–9:45)</option><option value="morning">Morning (9:45–12)</option><option value="midday">Midday (12–2)</option><option value="late">Late (2–4)</option></select></label>
@@ -28,7 +28,7 @@ export function Header({ filters, onFilter, answers, chartCount, onHistory, onCh
   );
 }
 
-/** Header numbers. Average exit counts only trades where you picked Bear's side. */
+/** Header numbers. Average exit counts only trades where you picked RSI Trader's side. */
 function Stats({ answers }: { answers: Record<string, Answer> }) {
   let n = 0, same = 0, sz = 0, szOk = 0;
   const ex: number[] = [];

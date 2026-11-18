@@ -41,7 +41,7 @@ export function History({ trades, answers, skips, onClose, onOpen, onImport }: P
   };
   const importProgress = async (f: File) => {
     try { const d = JSON.parse(await f.text()); if (!d || !d.a) throw new Error(); alert('Imported ' + onImport(d.a, d.skips || {}) + ' trades.'); }
-    catch { alert("That file doesn't look like a Bear Trainer export."); }
+    catch { alert("That file doesn't look like a RSI Trainer export."); }
   };
 
   return (
@@ -52,32 +52,32 @@ export function History({ trades, answers, skips, onClose, onOpen, onImport }: P
           {rows.length ? (
             <div className="stats-line">
               <span><b>{rows.length}</b> played</span>
-              <span><b>{same}/{rows.length}</b> same side as Bear</span>
+              <span><b>{same}/{rows.length}</b> same side as RSI Trader</span>
               <span><b>{sizeRight}/{graded.length}</b> size right{rows.length > graded.length ? <span className="small"> ({rows.length - graded.length} not graded: Swing or note trades have no Daytrade/Lotto label)</span> : null}</span>
               <span><b>{skipped.length}</b> skipped</span>
             </div>
           ) : <div className="small">No trades yet.</div>}
-          <div className="small">Average exits count only trades where you picked Bear's side (* = not counted). Your progress is saved in this browser only, so use Export to back it up or move it to another device.</div>
+          <div className="small">Average exits count only trades where you picked RSI Trader's side (* = not counted). Your progress is saved in this browser only, so use Export to back it up or move it to another device.</div>
         </div>
         {rows.length > 0 && (
           <div className="bd" id="histBreak">
             <Breakdown rows={rows} label="Setup" keyOf={(r) => r.t.setup} />
-            <Breakdown rows={rows} label="Bear's trade" keyOf={(r) => r.t.tk + ' ' + (r.t.r === 'C' ? 'calls' : 'puts')} />
+            <Breakdown rows={rows} label="RSI Trader's trade" keyOf={(r) => r.t.tk + ' ' + (r.t.r === 'C' ? 'calls' : 'puts')} />
             <Breakdown rows={rows} label="Entry time" keyOf={(r) => r.t.tod} fmt={(k) => TOD[k] || k} />
-            <Breakdown rows={rows} label="Bear vs 4h bias" keyOf={(r) => (!r.t.b4 ? 'Unknown' : (r.t.b4[0] >= r.t.b4[1]) === (r.t.r === 'C') ? 'With 4h bias' : 'Against 4h bias')} />
+            <Breakdown rows={rows} label="RSI Trader vs 4h bias" keyOf={(r) => (!r.t.b4 ? 'Unknown' : (r.t.b4[0] >= r.t.b4[1]) === (r.t.r === 'C') ? 'With 4h bias' : 'Against 4h bias')} />
           </div>
         )}
         <div className="small">Tap a trade to replay how it played out.</div>
         <table>
-          <thead><tr><th>Date</th><th>Trade</th><th>Your call</th><th className="hidemob">Size</th><th>Your exit</th><th className="hidemob">Bear's 1st trim</th><th className="hidemob">Note</th></tr></thead>
+          <thead><tr><th>Date</th><th>Trade</th><th>Your call</th><th className="hidemob">Size</th><th>Your exit</th><th className="hidemob">RSI Trader's 1st trim</th><th className="hidemob">Note</th></tr></thead>
           <tbody id="histList">
             {rows.map(({ t, a }) => { const hasExit = typeof a.exit === 'number'; return (
               <tr key={t.id} data-id={t.id} onClick={() => onOpen(t.id)}>
                 <td>{t.d.slice(2)} {t.hm}</td>
                 <td>{t.tk} {t.r} <span className="small">{t.setup}</span></td>
                 <td>{a.g === 'C' ? 'Calls' : 'Puts'} {a.match ? <span className="good">✓</span> : <span className="bad">✗</span>}</td>
-                <td className="hidemob">{!sizeable(t) ? <span className="dim" title="Bear didn't label this Daytrade or Lotto, so size isn't graded">n/a</span> : a.size ? <>{a.size} {a.sizeOk ? <span className="good">✓</span> : <span className="bad">✗</span>}</> : '–'}</td>
-                <td className={hasExit ? (a.match ? tone(a.exit!) : 'dim') : ''} title={a.match ? undefined : "On Bear's side; not counted in your average"}>{hasExit ? pct(a.exit!) + (a.match ? '' : '*') : '–'}</td>
+                <td className="hidemob">{!sizeable(t) ? <span className="dim" title="RSI Trader didn't label this Daytrade or Lotto, so size isn't graded">n/a</span> : a.size ? <>{a.size} {a.sizeOk ? <span className="good">✓</span> : <span className="bad">✗</span>}</> : '–'}</td>
+                <td className={hasExit ? (a.match ? tone(a.exit!) : 'dim') : ''} title={a.match ? undefined : "On RSI Trader's side; not counted in your average"}>{hasExit ? pct(a.exit!) + (a.match ? '' : '*') : '–'}</td>
                 <td className="hidemob">{t.t1 != null ? pct(t.t1) : '–'}</td>
                 <td className="hidemob small">{(a.note || '').slice(0, 60)}</td>
               </tr>
@@ -87,7 +87,7 @@ export function History({ trades, answers, skips, onClose, onOpen, onImport }: P
         {skipped.length > 0 && (
           <div id="skipList" style={{ marginTop: 14 }}>
             <h3 style={{ marginBottom: 4 }}>Skipped ({skipped.length})</h3>
-            <div className="small">Bear took these; you passed. Set Show to "Ones I skipped" to try them again.
+            <div className="small">RSI Trader took these; you passed. Set Show to "Ones I skipped" to try them again.
               {' '}{(() => { const c: Record<string, number> = {}; skipped.forEach((t) => { c[t.setup] = (c[t.setup] || 0) + 1; }); return 'By setup: ' + Object.entries(c).map(([k, v]) => k + ' ' + v).join(', ') + '.'; })()}</div>
           </div>
         )}

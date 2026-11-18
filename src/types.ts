@@ -2,7 +2,7 @@ export type Side = 'C' | 'P';
 export type Size = 'Daytrade' | 'Lotto';
 export type Stage = 'guess' | 'replay' | 'done';
 
-/** One of Bear's messages on the trade's day, `m` minutes after entry. */
+/** One of RSI Trader's messages on the trade's day, `m` minutes after entry. */
 export interface BearEvent {
   m: number;
   k: 'trim' | 'update' | 'note';
@@ -20,7 +20,7 @@ export interface Trade {
   hm: string; // entry time HH:MM (ET)
   setup: string; // Daytrade | Lotto | Swing | From note
   tk: string; // QQQ, SPY, SPX, IWM
-  r: Side; // Bear's side
+  r: Side; // RSI Trader's side
   k: number; // strike
   exp: string;
   dte: number;
@@ -31,11 +31,11 @@ export interface Trade {
   mxm: number; // minutes until that best
   path: [number, number][]; // [minutes after entry, modelled option price in cents]
   ev: BearEvent[];
-  img: string; // relative path of Bear's chart screenshot, '' if none
+  img: string; // relative path of RSI Trader's chart screenshot, '' if none
   tod: string; // open | morning | midday | late
   b4: RsiState | null; // 4-hour RSI at entry
   bd: RsiState | null; // daily RSI at entry
-  t1?: number | null; // Bear's first posted trim %, if any (in the index, so History works without detail)
+  t1?: number | null; // RSI Trader's first posted trim %, if any (in the index, so History works without detail)
 }
 
 /** A trade as listed in the index: everything except per-minute prices and messages, loaded on demand. */

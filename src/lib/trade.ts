@@ -36,7 +36,7 @@ export function firstTouch(t: Trade, from: number, to: number, plan: ExitPlan, s
 }
 
 /**
- * Rule-based version of Bear's management: sell half at `trimAt` (his own first posted trim for
+ * Rule-based version of RSI Trader's management: sell half at `trimAt` (his own first posted trim for
  * this trade, else his median +23%), then move the stop to break-even on the rest. Before the
  * trim the stop is the swing break when known (`swingBreakM`, `undefined` = not computed yet),
  * else an assumed -30%. `txt` spells out the arithmetic.
@@ -61,10 +61,10 @@ export function bearStyle(t: Trade, swingBreakM?: number | null, trimAt = 23): {
 }
 
 export interface ChartFacts { div15?: Divergence[]; div5?: Divergence[]; swing?: number | null; swingBreakM?: number | null }
-/** How often Bear traded against a 4h RSI outside its bands, across all trades. */
+/** How often RSI Trader traded against a 4h RSI outside its bands, across all trades. */
 export interface FadeStat { n: number; against: number }
 
-/** Counts, over the trade list, how often Bear went against a 4h RSI that was outside its bands. */
+/** Counts, over the trade list, how often RSI Trader went against a 4h RSI that was outside its bands. */
 export function fade4hStat(trades: { b4: RsiState | null; r: string }[]): FadeStat {
   let n = 0, against = 0;
   for (const t of trades) {
@@ -88,7 +88,7 @@ export function lessonLines(t: Trade, r15: RsiState | null, facts: ChartFacts = 
       (trendUp === isCall ? 'and here he traded with it' + rare + '.' : 'but here he traded against it, fading the stretched 4h' + usual + '. In practice this rule is context, not a filter.'));
   } else if (t.b4) {
     const withBias = (t.b4[0] >= t.b4[1]) === isCall;
-    L.push(withBias ? 'Bear traded <b>with</b> the 4h bias (RSI ' + (isCall ? 'above' : 'below') + ' its median).' : 'Bear traded <b>against</b> the 4h bias. By his checklist that makes it a scalp, so expect quick trims, not a runner.');
+    L.push(withBias ? 'RSI Trader traded <b>with</b> the 4h bias (RSI ' + (isCall ? 'above' : 'below') + ' its median).' : 'RSI Trader traded <b>against</b> the 4h bias. By his checklist that makes it a scalp, so expect quick trims, not a runner.');
   }
   if (r15) {
     if (r15[0] < r15[3]) L.push('The 15m RSI was <b>below its lower band</b>, which he reads as a temporary bottom. ' + (isCall ? 'He bought calls into it, a band fade.' : 'He still took puts, so he saw continuation.'));

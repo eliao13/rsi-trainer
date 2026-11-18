@@ -157,7 +157,7 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
   const xe = padL + (ie - i0 + 1) * bw + ((entrySec - (B.t[ie] + barSec)) / barSec) * bw;
   if (xe > padL) {
     x.strokeStyle = '#e6b450'; x.setLineDash([5, 4]); x.beginPath(); x.moveTo(xe, top); x.lineTo(xe, H - 28); x.stroke(); x.setLineDash([]);
-    const et = stage === 'guess' ? 'Bear enters here' : 'Entry';
+    const et = stage === 'guess' ? 'RSI Trader enters here' : 'Entry';
     x.fillStyle = '#e6b450'; x.fillText(et, Math.min(xe + 5, W - padR - x.measureText(et).width - 4), top + 8);
   }
   const lp = B.c[nb - 1];

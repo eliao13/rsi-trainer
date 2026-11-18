@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { clearCharts, countCharts, forgetGh, ghConf, importCharts, saveGh } from '../lib/charts';
 
-/** Load Bear's screenshots from this device or a private GitHub repo. */
+/** Load RSI Trader's screenshots from this device or a private GitHub repo. */
 export function ChartsDialog({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
   const folderRef = useRef<HTMLInputElement>(null), filesRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState('');
@@ -26,8 +26,8 @@ export function ChartsDialog({ onClose, onChanged }: { onClose: () => void; onCh
   return (
     <div id="chartsDlg" style={{ position: 'fixed', inset: 0, background: 'rgba(5,7,10,.85)', zIndex: 25, overflow: 'auto', padding: 20 }}>
       <div className="box" style={{ maxWidth: 560, margin: '40px auto' }}>
-        <h3>Bear's chart screenshots</h3>
-        <p className="small">These come from Bear's paid channel, so they aren't published with this site. Load them from your own device. They're saved in this browser only and never uploaded.</p>
+        <h3>RSI Trader's chart screenshots</h3>
+        <p className="small">These come from RSI Trader's paid channel, so they aren't published with this site. Load them from your own device. They're saved in this browser only and never uploaded.</p>
         <p className="small"><b>Desktop:</b> pick the <code>bear-ideas_charts_by_outcome</code> folder.<br /><b>Phone:</b> zip that folder on your computer, send the .zip to your phone, then pick it here.</p>
         <div className="row"><button id="bPickFolder" className="primary" onClick={() => folderRef.current?.click()}>Pick folder</button><button id="bPickFiles" onClick={() => filesRef.current?.click()}>Pick .zip or images</button></div>
         <input type="file" id="folderIn" ref={folderRef} multiple className="hidden" onChange={(e) => { onFiles(e.target.files); e.target.value = ''; }} />

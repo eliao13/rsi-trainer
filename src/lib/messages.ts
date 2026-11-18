@@ -1,6 +1,6 @@
 import type { BearEvent, Trade } from '../types';
 
-// Bear's own shorthand and shouting: all-caps words that are not tickers.
+// RSI Trader's own shorthand and shouting: all-caps words that are not tickers.
 const JARGON = new Set(('SL BE PA PT TP RSI GG LOL LMAO WTF OMG OMFG ATH ATL EOD HOD LOD DB DT TL TLS FOMC CPI PPI NFP FED ET AM PM US OK IV EMA SMA VWAP TRAMA MA BB DTE ODTE OTM ITM ATM YOLO IMO TBH BTW PNL PL LFG GM GN NY UK EU AI CEO IPO EPS ER SEC OPEX PCE GDP JOLTS ISM ADP PMI FOMO HUGE BIG NEW ALL OUT IN UP DOWN NOT NO YES WOW BOOM CLOSE CLOSING OPEN HOLD SELL BUY ADD ADDED DONE GREEN RED HEDGE CALLS PUTS CALL PUT CONS PROFIT TRIM TRIMS LONG LONGS SHORT SHORTS AND THE FOR YOU ME MY WE IT IS ON AT TO OF THIS THAT WHAT WHO WHY HOW OR SO BUT IF GO ARE WAS HAS HAD BE AS BY AN AVG LETS LET GOOD GREAT NICE LIVE NOW HERE WAIT STOP PLEASE TAKE TAKING PAID PAY OFF ONE TWO MOVE MOVES RUN RUNNER RUNNERS NEXT LAST DAY WEEK MON TUE WED THU FRI JAN FEB MAR APR MAY JUN JUL AUG SEP SEPT OCT NOV DEC HIT AH PIPS HALF LOTTO SWING DAYTRADE ALERT NEWS DATA KEY LEVEL BREAK SUPPORT SCALP TOP HIGH LOW HIGHS LOWS LADIES JPOW USD EST PST UTC FAQ TA DD VS AKA ASAP DM DMS NFA FYI II III IV').split(' '));
 // Tickers he often trades besides the indexes; checked even when he's shouting.
 const OTHER = new Set('NVDA TSLA AAPL AMD META MSFT AMZN GOOG GOOGL NFLX COIN DIA UVXY VIX VXX TLT GLD SLV BTC ETH SMCI AVGO PLTR MSTR DJT ARM MU DOCU RDDT TRMD XOM KTOS BABA HOOD SOFI NIO RIVN LCID CVNA SHOP UBER ROKU SNOW CRWD PANW ORCL INTC QCOM TSM ASML'.split(' '));
@@ -12,7 +12,7 @@ const FAM: Record<string, string[]> = {
 };
 
 /**
- * Bear's chat is logged per day. Hide a message when it names another ticker ($TICK,
+ * RSI Trader's chat is logged per day. Hide a message when it names another ticker ($TICK,
  * an all-caps word that isn't jargon, or a known non-index ticker) or an option strike
  * far from this trade's, unless it also names this ticker. His trims/updates are kept.
  */
@@ -59,16 +59,16 @@ export function timeline(t: Trade, step: number) {
 // Not "back at trim level", "looking to trim" or "if you want to trim", which name a level or a plan.
 const TRIM_DONE = /\b(trimm(ing|ed)|trimm+|took (a |my |some )?trims?|taking (a |my |some )?trims?|trim(ming)? (here|now|half|some|more|to runners|the rest))\b|^\W*trim\W*$/i; // also "TRIMMM!" and a bare "TRIM!"
 const TRIM_NOT = /\b(trim level|at trim|trim (target|zone|area|spot)|will trim|looking to trim|want to trim|plan to trim|wanna trim|if you|could trim|can trim|should trim|before trim)\b/i;
-/** Bear's messages on this trade (as the timeline shows them) that report a trim but give no %. */
+/** RSI Trader's messages on this trade (as the timeline shows them) that report a trim but give no %. */
 export function trimPostsWithoutPct(t: Trade, step: number): number {
   return timeline(t, step).shown.filter((e) => e.k === 'note' && !!e.x && TRIM_DONE.test(e.x) && !TRIM_NOT.test(e.x) && !/\d\s?%/.test(e.x)).length;
 }
 
-// Bear saying he's out: "close it out here", "all out", "taking full profit", "stopped out the rest".
+// RSI Trader saying he's out: "close it out here", "all out", "taking full profit", "stopped out the rest".
 const EXIT_DONE = /\b(clos(e|ing) (it |them |this |these |the rest |everything )?(out|here)|closing (it|them|this|these|the rest|for profit)|all out|out the rest|fully (out|closed)|full profit|stopped out|cut (it|the rest|them)|took (it|the rest) off|done with (this|these|it))\b/i;
 const EXIT_NOT = /\b(if|will|would|might|could|gonna|going to|plan|looking to|thinking|before)\b/i;
 /**
- * When Bear said he was out of this trade: the first exit message in the trade's timeline, else
+ * When RSI Trader said he was out of this trade: the first exit message in the trade's timeline, else
  * his last trim or update. Null if neither.
  */
 export function exitMinute(t: Trade, step: number): number | null {

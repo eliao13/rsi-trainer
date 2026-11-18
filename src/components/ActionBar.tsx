@@ -13,7 +13,7 @@ interface Props {
 export function Verdict({ trade, guess, size }: { trade: Trade; guess: Side | null; size: Size | null }) {
   return (
     <>
-      {guess === trade.r ? <b className="good">Same side as Bear.</b> : <b className="bad">Bear took {sideName(trade.r)}.</b>}
+      {guess === trade.r ? <b className="good">Same side as RSI Trader.</b> : <b className="bad">RSI Trader took {sideName(trade.r)}.</b>}
       {sizeable(trade) && size && (size === trade.setup ? <span className="good"> Size right: {trade.setup}.</span> : <span className="bad"> He called it a {trade.setup}.</span>)}
     </>
   );
@@ -49,7 +49,7 @@ export function ActionBar(p: Props) {
   if (stage === 'guess') return (
     <div className="box" id="actions"><div id="aGuess">
       <h3>What would you take here?</h3>
-      <div className="small hint">Bear entered at the dashed line. You see only what he saw.</div>
+      <div className="small hint">RSI Trader entered at the dashed line. You see only what he saw.</div>
       {sizeable(t) && (
         <div id="sizeRow" className={p.flashSize ? 'needsize' : ''}>
           {p.flashSize
@@ -61,7 +61,7 @@ export function ActionBar(p: Props) {
           </div>
         </div>
       )}
-      {!sizeable(t) && <div id="noSize" className="small" style={{ marginTop: 6 }}>Bear didn't label this one Daytrade or Lotto, so only the side is graded.</div>}
+      {!sizeable(t) && <div id="noSize" className="small" style={{ marginTop: 6 }}>RSI Trader didn't label this one Daytrade or Lotto, so only the side is graded.</div>}
       {/* The exit plan carries over between rounds, so it is shown before every replay. */}
       <div id="planRow" className={'plan-sum' + (hasPlan ? ' active' : '')}>
         <span className="long">Exit plan: <b>{planText(p.plan)}</b></span><span className="short">Plan: <b>{planText(p.plan, true)}</b></span>
@@ -82,7 +82,7 @@ export function ActionBar(p: Props) {
       <div className="box" id="actions"><div id="aReplay">
         <div id="verdict"><Verdict trade={t} guess={p.guess} size={p.size} /></div>
         <div id="pnl">
-          {wrong && <span className="hidemob"><span className="small">Bear's {sideName(t.r)} (you picked {sideName(p.guess || '')})</span><br /></span>}
+          {wrong && <span className="hidemob"><span className="small">RSI Trader's {sideName(t.r)} (you picked {sideName(p.guess || '')})</span><br /></span>}
           ${price.toFixed(2)} <span className={tone(r)}>{pct(r)}</span> <span className="small">{step} min in</span>
         </div>
         <PlanSelects plan={p.plan} onPlan={p.onPlan} />
@@ -94,7 +94,7 @@ export function ActionBar(p: Props) {
           <button id="bSell" disabled={!!ue} onClick={p.onSell}>Sell<kbd>S</kbd></button>
         </div>
         <div id="sold" className="small">{ue && (
-          <>{ue.why === 'target' ? 'Target hit: auto-sold' : ue.why === 'stop' ? (p.plan.s === CHART_STOP ? 'A 5m candle closed past the entry swing: auto-sold' : 'Stop hit: auto-sold') : 'You sold'} at <b className={tone(ue.p)}>{pct(ue.p)}</b> after {ue.m} min{wrong ? " (Bear's side, so it doesn't count toward your average)" : ''}.
+          <>{ue.why === 'target' ? 'Target hit: auto-sold' : ue.why === 'stop' ? (p.plan.s === CHART_STOP ? 'A 5m candle closed past the entry swing: auto-sold' : 'Stop hit: auto-sold') : 'You sold'} at <b className={tone(ue.p)}>{pct(ue.p)}</b> after {ue.m} min{wrong ? " (RSI Trader's side, so it doesn't count toward your average)" : ''}.
             {p.tf !== 1 && t.t + ue.m * 60 <= Math.ceil(t.t / (p.tf * 60)) * p.tf * 60 ? ' That was inside the entry candle on this chart: tap 1 min to see where.' : ''} Keep stepping to see what happened next.</>
         )}</div>
       </div></div>

@@ -2,6 +2,9 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.4.2
+- Renamed: the app is now "RSI Trainer", and the trader is "RSI Trader" throughout (saved progress and loaded charts carry over)
+
 ## 2.4.1
 - Trim posts like "TRIMMM!" or a bare "TRIM!" count in Bear's result
 - Bear's exit is read from his messages ("close it out here", "all out", "taking full profit", "stopped out"), so "Best the option reached" says when the peak came after he was out, even with no trims posted
