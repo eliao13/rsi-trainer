@@ -1,4 +1,4 @@
-import type { Series, Trade, TradeIndex } from '../types';
+import type { EtfFile, EtfSeries, Series, Trade, TradeIndex } from '../types';
 
 // The data files are plain scripts that assign window globals, so they load without a bundler step.
 const loading: Record<string, Promise<void>> = {};
@@ -86,5 +86,40 @@ export async function loadM1(t: TradeIndex): Promise<Series | null> {
     if (mn > to) break;
     s.t.push(mn); s.o.push(p.o[i] / p.scale); s.h.push(p.h[i] / p.scale); s.l.push(p.l[i] / p.scale); s.c.push(p.c[i] / p.scale);
   }
+  return s.t.length ? s : null;
+}
+
+// ---------- ETF bars for VWAP (scripts/fetch_etf_bars.py) ----------
+function decodeEtf(p: EtfFile, base: number, from: number, to: number, into: EtfSeries) {
+  let mn = 0;
+  for (let i = 0; i < p.t.length; i++) {
+    mn += p.t[i];
+    if (mn < from) continue;
+    if (mn > to) break;
+    into.t.push(mn); into.h.push(p.h[i] / 1000); into.l.push(p.l[i] / 1000); into.c.push(p.c[i] / 1000); into.v.push(p.v[i]);
+  }
+  into.base = base;
+}
+
+/** 5-minute ETF bars for the same months as the chart's bars, or null if none were fetched. */
+export async function loadEtf(t: TradeIndex): Promise<EtfSeries | null> {
+  const s: EtfSeries = { base: 5, t: [], h: [], l: [], c: [], v: [] };
+  for (const m of barMonths(t.t)) {
+    const key = t.ci + '_' + m;
+    if (!window.RSI_ETF?.[key]) await loadScript('data/etf/' + key + '.js').catch(() => undefined);
+    const p = window.RSI_ETF?.[key];
+    if (p) decodeEtf(p, 5, -Infinity, Infinity, s);
+  }
+  return s.t.length ? s : null;
+}
+
+/** 1-minute ETF bars for the trade's day, or null if none were fetched. */
+export async function loadEtfM1(t: TradeIndex): Promise<EtfSeries | null> {
+  const key = t.ci + '_' + t.d.slice(0, 4);
+  if (!window.RSI_ETF_M1?.[key]) await loadScript('data/etf/m1_' + key + '.js').catch(() => undefined);
+  const p = window.RSI_ETF_M1?.[key];
+  if (!p) return null;
+  const s: EtfSeries = { base: 1, t: [], h: [], l: [], c: [], v: [] }, m = Math.floor(t.t / 60);
+  decodeEtf(p, 1, m - 600, m + 600, s);
   return s.t.length ? s : null;
 }

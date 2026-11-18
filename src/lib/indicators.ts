@@ -1,4 +1,4 @@
-import type { RsiState, Series } from '../types';
+import type { EtfSeries, RsiState, Series } from '../types';
 
 /** Wilder's RSI. Returns null until there is enough history. */
 export function rsi(c: number[], n = 14): (number | null)[] {
@@ -92,6 +92,35 @@ export function trama(h: number[], l: number[], c: number[], n = 34): (number | 
       ama = ama == null ? c[i] : ama + tc * (c[i] - ama);
       out[i] = ama;
     }
+  }
+  return out;
+}
+
+/**
+ * Session VWAP on chart bars, as TradingView draws it on the ETF chart: the ETF's bars are grouped into
+ * the chart's timeframe, VWAP = cumulative hlc3 x volume / volume from each session's first bar, then
+ * moved onto the chart's price scale by the ratio of the two closes on that bar (the chart shows the
+ * index; RSI Trader trades the ETF). `bars.t` is bar start in seconds; null where the ETF has no bar.
+ */
+export function vwapOnChart(bars: Series, etf: EtfSeries | null, mins: number): (number | null)[] {
+  const out: (number | null)[] = new Array(bars.t.length).fill(null);
+  if (!etf || !etf.t.length || mins < etf.base) return out;
+  const at = new Map<number, [number, number]>(); // bar start (s) -> [vwap, etf close]
+  let g = NaN, h = 0, l = 0, c = 0, v = 0, pv = 0, vv = 0, last = -Infinity;
+  const flush = () => { if (isNaN(g) || v <= 0) return; pv += ((h + l + c) / 3) * v; vv += v; at.set(g * mins * 60, [pv / vv, c]); };
+  for (let i = 0; i < etf.t.length; i++) {
+    const m = etf.t[i], gi = Math.floor(m / mins);
+    if (gi !== g) {
+      flush();
+      if (m - last > 360) { pv = 0; vv = 0; } // more than 6 hours since the previous bar: new session
+      g = gi; h = etf.h[i]; l = etf.l[i]; c = etf.c[i]; v = etf.v[i];
+    } else { if (etf.h[i] > h) h = etf.h[i]; if (etf.l[i] < l) l = etf.l[i]; c = etf.c[i]; v += etf.v[i]; }
+    last = m;
+  }
+  flush();
+  for (let i = 0; i < bars.t.length; i++) {
+    const hit = at.get(bars.t[i]);
+    if (hit && hit[1] > 0) out[i] = hit[0] * (bars.c[i] / hit[1]);
   }
   return out;
 }

@@ -42,6 +42,10 @@ export interface Trade {
 export type TradeIndex = Omit<Trade, 'path' | 'ev'>;
 
 /** Price bars; `t` is the bar index in units of `base` minutes (unix seconds / (base*60)). */
+/** ETF bars (SPY/QQQ/IWM, regular hours, consolidated volume) for VWAP. t = bar start in epoch minutes. */
+export interface EtfSeries { base: number; t: number[]; h: number[]; l: number[]; c: number[]; v: number[] }
+export interface EtfFile { sym: string; t: number[]; h: number[]; l: number[]; c: number[]; v: number[] }
+
 export interface Series {
   base?: number; // minutes per bar index; 5 when omitted
   t: number[];
@@ -98,6 +102,9 @@ declare global {
     BEAR_DETAIL?: Record<string, Record<string, [Trade['path'], Trade['ev']]>>;
     BEAR_M1?: Record<string, { scale: number; dt: number[]; o: number[]; h: number[]; l: number[]; c: number[] }>;
     BEAR_M1_KEYS?: string[];
+    RSI_ETF?: Record<string, EtfFile>;
+    RSI_ETF_KEYS?: string[];
+    RSI_ETF_M1?: Record<string, EtfFile>;
     BEAR_BARS?: Record<string, { scale: number; t: number[]; o: number[]; h: number[]; l: number[]; c: number[] }>;
   }
 }

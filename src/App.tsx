@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Answer, ExitPlan, Filters, Series, Side, Size, Stage, Trade, TradeIndex, UserExit } from './types';
-import { loadM1, loadM1Keys, loadSeries, loadTrade, loadTrades, m1Key } from './lib/data';
+import type { Answer, EtfSeries, ExitPlan, Filters, Series, Side, Size, Stage, Trade, TradeIndex, UserExit } from './types';
+import { loadEtf, loadEtfM1, loadM1, loadM1Keys, loadSeries, loadTrade, loadTrades, m1Key } from './lib/data';
 import { useSaved } from './lib/storage';
 import { aggBars, rsi, rsiAt } from './lib/indicators';
 import { entrySwing, swingBreakMinute } from './lib/levels';
@@ -39,10 +39,14 @@ export function App() {
   // TRAMA overlay on/off, remembered per browser
   const [showTrama, setShowTramaState] = useState(() => { try { return localStorage.getItem('rsiTrama') !== '0'; } catch { return true; } });
   const setShowTrama = (on: boolean) => { setShowTramaState(on); try { localStorage.setItem('rsiTrama', on ? '1' : '0'); } catch { /* blocked */ } };
+  const [showVwap, setShowVwapState] = useState(() => { try { return localStorage.getItem('rsiVwap') !== '0'; } catch { return true; } });
+  const setShowVwap = (on: boolean) => { setShowVwapState(on); try { localStorage.setItem('rsiVwap', on ? '1' : '0'); } catch { /* blocked */ } };
   const [series, setSeries] = useState<Series | null>(null);
   const [tf, setTf] = useState(5);
   const [m1, setM1] = useState<Series | null>(null);
   const [m1Avail, setM1Avail] = useState(false);
+  const [etf5, setEtf5] = useState<EtfSeries | null>(null); // ETF bars for VWAP
+  const [etf1, setEtf1] = useState<EtfSeries | null>(null);
   const [poolSize, setPoolSize] = useState(0);
   const [flashSize, setFlashSize] = useState(false);
   const [sessionLosses, setSessionLosses] = useState(0);
@@ -79,6 +83,8 @@ export function App() {
     let live = true;
     setSeries(null);
     loadSeries(tradeOnScreen).then((s) => live && setSeries(s));
+    setEtf5(null); setEtf1(null);
+    loadEtf(tradeOnScreen).then((e) => live && setEtf5(e));
     setM1(null); setM1Avail(false);
     loadM1Keys().then((keys) => live && setM1Avail(keys.has(m1Key(tradeOnScreen))));
     return () => { live = false; };
@@ -89,6 +95,7 @@ export function App() {
     if (!m1Avail) { setTf(5); return; }
     let live = true;
     loadM1(tradeOnScreen).then((s) => { if (!live) return; if (s) setM1(s); else { setM1Avail(false); setTf(5); } });
+    loadEtfM1(tradeOnScreen).then((e) => live && setEtf1(e));
     return () => { live = false; };
   }, [tf, tradeOnScreen, m1Avail]);
 
@@ -225,8 +232,8 @@ export function App() {
           </div>
           <div className="tf">Chart: {m1Avail && <button id="tf1" className={tf === 1 ? 'on' : ''} onClick={() => setTf(1)} title="1-minute bars for timing exits">1 min</button>}<button id="tf5" className={tf === 5 ? 'on' : ''} onClick={() => setTf(5)}>5 min</button><button id="tf15" className={tf === 15 ? 'on' : ''} onClick={() => setTf(15)}>15 min</button>
             <span className="tfnote">RSI 14 with Bollinger Bands on the RSI (34-bar median, 2σ). Tap or hover the chart to read a candle.</span>
-            <span className="legend"><button className="tr" aria-pressed={showTrama} onClick={() => setShowTrama(!showTrama)} title="Show or hide TRAMA (length 34)">━ TRAMA 34</button></span></div>
-          <Chart showTrama={showTrama} trade={t || null} message={loadingMsg} series={tf === 1 ? m1 : series} step={round?.step || 0} tf={tf} stage={round?.stage || 'guess'} userExit={round?.userExit || null}
+            <span className="legend"><button className="tr" aria-pressed={showTrama} onClick={() => setShowTrama(!showTrama)} title="Show or hide TRAMA (length 34)">━ TRAMA 34</button>{(tf === 1 ? etf1 : etf5) && <button className="vw" aria-pressed={showVwap} onClick={() => setShowVwap(!showVwap)} title={"Session VWAP from 09:30, from " + t?.tk + " bars with full-market volume"}>━ VWAP</button>}</span></div>
+          <Chart showTrama={showTrama} showVwap={showVwap} etf={tf === 1 ? etf1 : etf5} trade={t || null} message={loadingMsg} series={tf === 1 ? m1 : series} step={round?.step || 0} tf={tf} stage={round?.stage || 'guess'} userExit={round?.userExit || null}
             swing={facts.swing} divs={tf === 5 ? facts.div5 : tf === 15 ? facts.div15 : undefined} />
         </section>
         {round && t && round.stage === 'done' && (<Results trade={t} facts={facts} fade={fade} guess={round.guess} size={round.size} userExit={round.userExit} answer={saved.a[t.id]} review={round.review} r15={r15}

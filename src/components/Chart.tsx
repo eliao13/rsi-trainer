@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Series, Stage, Trade, UserExit } from '../types';
+import type { EtfSeries, Series, Stage, Trade, UserExit } from '../types';
 import type { Divergence } from '../lib/divergence';
-import { aggBars, bands, niceStep, rsi, trama } from '../lib/indicators';
+import { aggBars, bands, niceStep, rsi, trama, vwapOnChart } from '../lib/indicators';
 import { fmtET, fmtMD } from '../lib/format';
 
 interface Props {
@@ -12,6 +12,7 @@ interface Props {
   swing?: number | null; // entry swing level (shown after answering)
   divs?: Divergence[]; // divergences on this timeframe, as indexes into its bars (shown after answering)
   showTrama?: boolean; // TRAMA 34 overlay
+  showVwap?: boolean; etf?: EtfSeries | null; // session VWAP from the ETF's bars
 }
 interface Geo { i0: number; bw: number; padL: number; nb: number }
 
@@ -61,7 +62,7 @@ export function Chart(props: Props) {
   return <canvas id="chart" ref={ref} onPointerMove={onPointer} onPointerDown={onPointer} onPointerLeave={() => setHover(null)} />;
 }
 
-function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, stage, userExit, swing, divs, showTrama }: Props, hover: number | null): Geo | null {
+function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, stage, userExit, swing, divs, showTrama, showVwap, etf }: Props, hover: number | null): Geo | null {
   const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
   cv.width = W * dpr; cv.height = H * dpr;
   const x = cv.getContext('2d')!; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
@@ -129,6 +130,12 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
     x.beginPath(); x.moveTo(xi(i), yp(B.h[i])); x.lineTo(xi(i), y1); x.moveTo(xi(i), y1 + ch); x.lineTo(xi(i), yp(B.l[i])); x.stroke();
     if (up && cw >= 4) x.strokeRect(Math.round(cx) + 0.5, Math.round(y1) + 0.5, Math.round(cw) - 1, Math.max(1, Math.round(ch) - 1));
     else x.fillRect(cx, y1, cw, ch);
+  }
+  if (showVwap && etf) { // breaks between sessions (no line overnight)
+    const V = vwapOnChart(B, etf, tf);
+    x.strokeStyle = '#7FD4C1'; x.lineWidth = 1.4; x.beginPath(); let st = false;
+    for (let j = i0; j < nb; j++) { const v = V[j]; if (v == null) { st = false; continue; } if (!st) { x.moveTo(xi(j), yp(v)); st = true; } else x.lineTo(xi(j), yp(v)); }
+    x.stroke(); x.lineWidth = 1;
   }
   if (showTrama) { // TRAMA 34 on this timeframe, computed over all bars so it is settled by the first one shown
     const T = trama(B.h, B.l, B.c, 34);

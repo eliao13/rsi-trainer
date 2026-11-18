@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Trade } from '../types';
-import { aggBars, bands, rsi, trama } from './indicators';
+import { aggBars, bands, rsi, trama, vwapOnChart } from './indicators';
 import { bearStyle, firstTouch, lessonLines, optAt, pctAt } from './trade';
 import { noteCutoff, relevantFor, timeline } from './messages';
 import { idFromName } from './charts';
@@ -15,6 +15,23 @@ function trade(over: Partial<Trade> = {}): Trade {
 const pathOf = (pcts: number[]): [number, number][] => pcts.map((p, i) => [i + 1, Math.round(100 + p)]);
 
 describe('indicators', () => {
+  it('VWAP: hlc3 x volume from the session start, regrouped per timeframe, reset each day, scaled to the chart', () => {
+    // three 5-minute ETF bars on day 1 (one 15-minute bucket) and one on day 2; h = l = c, so hlc3 = c
+    const d1 = 999990, d2 = d1 + 24 * 60;
+    const etf = { base: 5, t: [d1, d1 + 5, d1 + 10, d2], h: [10, 12, 11.5, 20], l: [10, 12, 11.5, 20], c: [10, 12, 11.5, 20], v: [100, 300, 100, 50] };
+    const chart = (ts: number[], c: number[]) => ({ t: ts.map((m) => m * 60), o: c, h: c, l: c, c });
+    // 5-minute chart at 10x the ETF price
+    const v5 = vwapOnChart(chart([d1, d1 + 5, d1 + 10, d2], [100, 120, 115, 200]), etf, 5);
+    expect(v5[0]).toBeCloseTo(100, 9);
+    expect(v5[1]).toBeCloseTo(((10 * 100 + 12 * 300) / 400) * 10, 9);
+    expect(v5[2]).toBeCloseTo(((10 * 100 + 12 * 300 + 11.5 * 100) / 500) * 10, 9);
+    expect(v5[3]).toBeCloseTo(200, 9); // new day starts over
+    // 15-minute chart: the three bars become one (h 12, l 10, c 11.5, v 500), as TradingView would build it
+    const v15 = vwapOnChart(chart([d1], [115]), etf, 15);
+    expect(v15[0]).toBeCloseTo(((12 + 10 + 11.5) / 3) * 10, 9);
+    // 1-minute chart cannot be built from 5-minute ETF bars
+    expect(vwapOnChart(chart([d1], [100]), etf, 1)[0]).toBeNull();
+  });
   it('TRAMA: flat until it has a window, follows a steady trend, holds still in a range', () => {
     const n = 5, up = Array.from({ length: 40 }, (_, i) => 100 + i);
     const t = trama(up.map((v) => v + 0.5), up.map((v) => v - 0.5), up, n);
