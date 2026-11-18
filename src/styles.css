@@ -132,3 +132,9 @@ button.link { background:none; border:none; padding:0 2px; color:var(--accent); 
   .plan-sum .short { display:inline; }
 }
 @media (max-width:380px) { .hide-narrow { display:none; } #actions #sizeRow .row { margin-top:0 !important; } }
+
+#appVersion { font-size:11px; font-weight:400; color:var(--dim); margin-left:6px; white-space:nowrap; }
+
+#sizeRow.needsize { background:rgba(230,180,80,.12); border-radius:6px; padding:2px 4px; }
+#sizeRow.needsize button.seg { border-color:var(--warn); }
+#sizeHint { font-weight:600; }

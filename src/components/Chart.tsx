@@ -110,11 +110,12 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
     x.fillRect(xi(i) - Math.max(1, bw * 0.35), y1, Math.max(2, bw * 0.7), Math.max(1, y2 - y1));
   }
   if (showSwing) {
-    const ys = yp(swing as number), lbl = (cur.r === 'C' ? 'Entry swing low' : 'Entry swing high') + (wide ? ': stop on a 5m close past it' : ' (5m-close stop)');
+    const ys = yp(swing as number), lbl = 'swing stop'; // short: it sits beside the axis; the lesson explains the rule
     x.strokeStyle = 'rgba(246,70,93,.8)'; x.setLineDash([6, 4]); x.beginPath(); x.moveTo(padL, ys); x.lineTo(W - padR, ys); x.stroke(); x.setLineDash([]);
-    const ly = ys + (cur.r === 'C' ? 11 : -11), lw = x.measureText(lbl).width + 10;
-    x.fillStyle = 'rgba(11,14,20,.85)'; x.fillRect(padL + 2, ly - 8, lw, 16);
-    x.fillStyle = 'rgba(246,70,93,.95)'; x.fillText(lbl, padL + 7, ly);
+    // right end of the line, beside the price axis: the empty rest-of-day area on desktop
+    const ly = ys + (cur.r === 'C' ? 11 : -11), lw = x.measureText(lbl).width + 10, lx = W - padR - lw - 4;
+    x.fillStyle = 'rgba(11,14,20,.9)'; x.fillRect(lx, ly - 8, lw, 16);
+    x.fillStyle = 'rgba(246,70,93,.95)'; x.fillText(lbl, lx + 5, ly);
   }
   const divColor = (d: Divergence) => (d.type === 'bull' ? '#2ebd85' : '#f6465d');
   const showDivs = stage !== 'guess' && divs ? divs.filter((d) => d.i1 >= i0 && d.i2 < nb) : [];
@@ -122,9 +123,12 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
     const v1 = d.type === 'bull' ? B.l[d.i1] : B.h[d.i1], v2 = d.type === 'bull' ? B.l[d.i2] : B.h[d.i2];
     x.strokeStyle = divColor(d); x.lineWidth = 2; x.beginPath(); x.moveTo(xi(d.i1), yp(v1)); x.lineTo(xi(d.i2), yp(v2)); x.stroke(); x.lineWidth = 1;
     // label kept clear of the "Entry" / instrument labels along the top
-    const dl = d.type === 'bull' ? 'Bull div?' : 'Bear div?';
-    const dy = Math.min(top + hP - 8, Math.max(top + 28, yp(v2) + (d.type === 'bull' ? 13 : -13)));
-    const dx = Math.min(xi(d.i2) + 4, W - padR - x.measureText(dl).width - 8);
+    // at the middle of the line, pushed away from price (below lows, above highs), not by the entry
+    const dl = d.type === 'bull' ? 'Bull div?' : 'Bear div?', dw = x.measureText(dl).width;
+    let ext = d.type === 'bull' ? Infinity : -Infinity;
+    for (let j = d.i1; j <= d.i2; j++) ext = d.type === 'bull' ? Math.min(ext, B.l[j]) : Math.max(ext, B.h[j]);
+    const dy = Math.min(top + hP - 8, Math.max(top + 28, yp(ext) + (d.type === 'bull' ? 14 : -14)));
+    const dx = Math.max(padL + 4, Math.min((xi(d.i1) + xi(d.i2)) / 2 - dw / 2, W - padR - dw - 8));
     x.fillStyle = 'rgba(11,14,20,.85)'; x.fillRect(dx - 3, dy - 8, x.measureText(dl).width + 6, 16);
     x.fillStyle = divColor(d); x.fillText(dl, dx, dy);
   }

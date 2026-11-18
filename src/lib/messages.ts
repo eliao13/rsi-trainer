@@ -54,3 +54,12 @@ export function timeline(t: Trade, step: number) {
   }
   return { shown, hidden };
 }
+
+// "Trimming to runners here", "took my trim", "trimmed half": a trim taken, with no % attached.
+// Not "back at trim level", "looking to trim" or "if you want to trim", which name a level or a plan.
+const TRIM_DONE = /\b(trimm(ing|ed)|took (a |my |some )?trims?|taking (a |my |some )?trims?|trim(ming)? (here|now|half|some|more|to runners|the rest))\b/i;
+const TRIM_NOT = /\b(trim level|at trim|trim (target|zone|area|spot)|will trim|looking to trim|want to trim|plan to trim|wanna trim|if you|could trim|can trim|should trim|before trim)\b/i;
+/** Bear's messages on this trade (as the timeline shows them) that report a trim but give no %. */
+export function trimPostsWithoutPct(t: Trade, step: number): number {
+  return timeline(t, step).shown.filter((e) => e.k === 'note' && !!e.x && TRIM_DONE.test(e.x) && !TRIM_NOT.test(e.x) && !/\d\s?%/.test(e.x)).length;
+}

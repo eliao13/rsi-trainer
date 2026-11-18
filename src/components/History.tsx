@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import type { Answer, TradeIndex } from '../types';
 import { pct, tone } from '../lib/format';
 import { sizeable } from '../lib/trade';
+import { APP_BUILT, APP_COMMIT, APP_VERSION, COMMIT_URL } from '../version';
 
 interface Row { t: TradeIndex; a: Answer }
 const TOD: Record<string, string> = { open: 'Opening bell', morning: 'Morning', midday: 'Midday', late: 'Late' };
@@ -34,7 +35,7 @@ export function History({ trades, answers, skips, onClose, onOpen, onImport }: P
   const skipped = Object.keys(skips).map((id) => trades.get(+id)).filter((t): t is TradeIndex => !!t && !answers[t.id]);
 
   const exportProgress = () => {
-    const u = URL.createObjectURL(new Blob([JSON.stringify({ v: 2, a: answers, skips }, null, 1)], { type: 'application/json' }));
+    const u = URL.createObjectURL(new Blob([JSON.stringify({ v: 2, app: APP_VERSION + '+' + APP_COMMIT, a: answers, skips }, null, 1)], { type: 'application/json' }));
     const el = document.createElement('a'); el.href = u; el.download = 'bear-trainer-progress.json'; document.body.appendChild(el); el.click(); el.remove();
     setTimeout(() => URL.revokeObjectURL(u), 1000);
   };
@@ -90,6 +91,10 @@ export function History({ trades, answers, skips, onClose, onOpen, onImport }: P
               {' '}{(() => { const c: Record<string, number> = {}; skipped.forEach((t) => { c[t.setup] = (c[t.setup] || 0) + 1; }); return 'By setup: ' + Object.entries(c).map(([k, v]) => k + ' ' + v).join(', ') + '.'; })()}</div>
           </div>
         )}
+        <div id="versionInfo" className="small" style={{ marginTop: 14 }}>
+          You're using version <b>{APP_VERSION}</b>, build {COMMIT_URL ? <a href={COMMIT_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>{APP_COMMIT}</a> : APP_COMMIT}
+          {APP_BUILT ? ', built ' + new Date(APP_BUILT).toLocaleString() : ''}. Quote it when reporting a bug.
+        </div>
         <div className="row" style={{ marginTop: 14 }}>
           <button id="bExport" onClick={exportProgress}>Export progress</button>
           <button id="bImport" onClick={() => fileRef.current?.click()}>Import progress</button>

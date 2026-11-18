@@ -98,3 +98,23 @@ describe('4h band rule, as he actually traded it', () => {
     expect(L).toContain('context, not a filter');
   });
 });
+
+describe('review round 2', () => {
+  it('rule-based exit trims at his own first trim and shows the arithmetic', () => {
+    const t = trade({ path: [[1, 120], [2, 145], [3, 150], [4, 100]] }); // +45% then back to entry
+    const r = bearStyle(t, null, 40);
+    expect(r.r).toBeCloseTo(20); // half at +40%, half at 0%
+    expect(r.txt).toBe('half at +40%, half stopped at break-even at +0% → +20%');
+    expect(bearStyle(t, null).r).toBeCloseTo(11.5); // no trim posted: his median +23%
+  });
+  it('counts trim posts without a %, but not trim levels or plans', async () => {
+    const { trimPostsWithoutPct } = await import('./messages');
+    const n = (x: string) => trimPostsWithoutPct(trade({ ev: [{ m: 5, k: 'note', x }] }), 60);
+    expect(n('Trimming to runners here')).toBe(1);
+    expect(n('took my trim, runners left')).toBe(1);
+    expect(n('Back at trim level here')).toBe(0);
+    expect(n('looking to trim at VWAP')).toBe(0);
+    expect(n('trimming here 40%')).toBe(0); // has a %, already counted as a trim
+    expect(n('trimming NVDA here')).toBe(0); // another ticker: not this trade
+  });
+});

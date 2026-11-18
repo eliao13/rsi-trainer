@@ -51,8 +51,10 @@ export function ActionBar(p: Props) {
       <h3>What would you take here?</h3>
       <div className="small hint">Bear entered at the dashed line. You see only what he saw.</div>
       {sizeable(t) && (
-        <div id="sizeRow" style={p.flashSize ? { background: 'rgba(230,180,80,.25)', transition: 'background .2s' } : undefined}>
-          <div className="lbl hide-narrow">How strong is the setup?</div>
+        <div id="sizeRow" className={p.flashSize ? 'needsize' : ''}>
+          {p.flashSize
+            ? <div id="sizeHint" className="lbl warn" role="alert">Pick Daytrade or Lotto first, then Calls or Puts.</div>
+            : <div className="lbl hide-narrow">How strong is the setup?</div>}
           <div className="row" style={{ marginTop: 4 }}>
             <button className={'seg' + (p.size === 'Daytrade' ? ' on' : '')} id="bDay" onClick={() => p.onSize('Daytrade')} title="All confluences: bias, pattern, 15m divergence, 5m trigger">Daytrade<kbd>D</kbd></button>
             <button className={'seg' + (p.size === 'Lotto' ? ' on' : '')} id="bLotto" onClick={() => p.onSize('Lotto')} title="Only one or two confluences">Lotto<kbd>L</kbd></button>

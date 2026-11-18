@@ -2,6 +2,7 @@ import type { Answer, RsiState, Side, Size, Trade, UserExit } from '../types';
 import type { ChartFacts, FadeStat } from '../lib/trade';
 import { bearStyle, lessonLines, maxStep, pctAt, postedTrims, sideName, sizeable } from '../lib/trade';
 import { pct, tone } from '../lib/format';
+import { trimPostsWithoutPct } from '../lib/messages';
 import { ChartImage } from './ChartImage';
 
 interface Props {
@@ -13,7 +14,7 @@ interface Props {
 const Pct = ({ v }: { v: number }) => <span className={tone(v)}>{pct(v)}</span>;
 
 export function Results({ trade: t, facts, fade, guess, size, userExit, answer: a, review, r15, sessionLosses, chartsVersion, onNote, onLoadCharts, onChartSaved }: Props) {
-  const trims = postedTrims(t), closeP = pctAt(t, maxStep(t)), bs = bearStyle(t, facts.ready ? facts.swingBreakM : undefined), wrong = !!guess && guess !== t.r;
+  const trims = postedTrims(t), closeP = pctAt(t, maxStep(t)), bs = bearStyle(t, facts.ready ? facts.swingBreakM : undefined, postedTrims(t)[0] ?? 23), wrong = !!guess && guess !== t.r;
   const mine = userExit || (review && a && typeof a.exit === 'number' ? { p: a.exit, m: a.exitM, why: a.exitWhy } : null);
   const why = mine?.why;
   const rows: [React.ReactNode, React.ReactNode][] = [
@@ -25,12 +26,17 @@ export function Results({ trade: t, facts, fade, guess, size, userExit, answer: 
   // What Bear actually did, from his own posts, comes before anything the price model estimates.
   const updates = t.ev.filter((e) => e.k === 'update' && e.p != null).map((e) => e.p as number);
   const bestUpdate = updates.length ? Math.max(...updates) : null;
+  const noPct = trimPostsWithoutPct(t, maxStep(t));
+  const tookProfit = trims.length > 0 || noPct > 0;
+  const lastPost = Math.max(0, ...t.ev.filter((e) => e.k === 'trim' || e.k === 'update').map((e) => e.m));
   rows.push(
-    ["Bear's result (his posts)", trims.length || bestUpdate != null
-      ? <>{trims.length ? 'Trimmed at ' + trims.map(pct).join(', ') : 'No trims posted'}{bestUpdate != null && (!trims.length || bestUpdate > Math.max(...trims)) ? <span style={{ fontWeight: 400 }}> · best update {pct(bestUpdate)}</span> : null}</>
+    ["Bear's result (his posts)", tookProfit || bestUpdate != null
+      ? <>{trims.length ? 'Trimmed at ' + trims.map(pct).join(', ') : noPct ? 'Trimmed (no % given)' : 'No trims posted'}
+          {trims.length > 0 && noPct > 0 ? <span style={{ fontWeight: 400 }}> + {noPct} trim post{noPct > 1 ? 's' : ''} with no %</span> : null}
+          {bestUpdate != null && (!trims.length || bestUpdate > Math.max(...trims)) ? <span style={{ fontWeight: 400 }}> · best update {pct(bestUpdate)}</span> : null}</>
       : <span className="dim">No trims or updates posted</span>],
     ['Estimates from the price model', ''],
-    ['Best the option reached', <><Pct v={t.mx} /> after {t.mxm} min</>],
+    ['Best the option reached', <><Pct v={t.mx} /> after {t.mxm} min{tookProfit && lastPost > 0 && t.mxm >= lastPost + 5 ? <div className="small" style={{ fontWeight: 400 }}>after his last post ({Math.round(lastPost)} min): what holding on would have paid, not what he got</div> : null}</>],
     ['Option at the close', <Pct v={closeP} />],
     ['Chart stop (5m close past entry swing)', !facts.ready ? <span className="dim">…</span> : facts.swingBreakM != null ? <><Pct v={pctAt(t, facts.swingBreakM)} /> after {facts.swingBreakM} min</> : 'Never hit'],
     ['Rule-based exit (estimate)', <><Pct v={bs.r} /><div className="small" style={{ fontWeight: 400 }}>{bs.txt}</div></>],
@@ -39,7 +45,7 @@ export function Results({ trade: t, facts, fade, guess, size, userExit, answer: 
   );
   // Say so plainly when the estimates contradict what Bear posted.
   const notes: string[] = [];
-  if (trims.length && bs.r < 0) notes.push('His posts show profit taken (' + trims.map(pct).join(', ') + '), but the rule-based estimate shows ' + pct(bs.r) + '. The estimate uses modelled option prices and a mechanical stop, so it can\'t see his adds, his mental stops or real fills.');
+  if (tookProfit && bs.r < 0) notes.push('His posts show profit taken (' + (trims.length ? trims.map(pct).join(', ') : 'a trim with no %') + '), but the rule-based estimate shows ' + pct(bs.r) + '. The estimate uses modelled option prices and a mechanical stop, so it can\'t see his adds, his mental stops or real fills.');
   if (trims.length && Math.max(...trims) > t.mx + 10) notes.push('The price model never reached his posted ' + pct(Math.max(...trims)) + ', so it underprices this option.');
 
   return (

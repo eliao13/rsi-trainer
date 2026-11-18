@@ -36,26 +36,30 @@ export function firstTouch(t: Trade, from: number, to: number, plan: ExitPlan, s
 }
 
 /**
- * Bear's management, roughly: first trim around +23%, then the stop to break-even on the rest.
- * Before the trim, the stop is the swing break when known (`swingBreakM`, `undefined` = not
- * computed yet), else an assumed −30%.
+ * Rule-based version of Bear's management: sell half at `trimAt` (his own first posted trim for
+ * this trade, else his median +23%), then move the stop to break-even on the rest. Before the
+ * trim the stop is the swing break when known (`swingBreakM`, `undefined` = not computed yet),
+ * else an assumed -30%. `txt` spells out the arithmetic.
  */
-export function bearStyle(t: Trade, swingBreakM?: number | null): { r: number; txt: string } {
+export function bearStyle(t: Trade, swingBreakM?: number | null, trimAt = 23): { r: number; txt: string } {
   let trimmed = false, last = 0;
-  const useSwing = swingBreakM !== undefined;
+  const useSwing = swingBreakM !== undefined, T = Math.round(trimAt * 10) / 10;
+  const half = (rest: number, why: string) => {
+    const r = (T + rest) / 2;
+    return { r, txt: 'half at +' + T + '%, half ' + why + ' at ' + (rest >= 0 ? '+' : '') + (Math.round(rest * 10) / 10) + '% → ' + (r >= 0 ? '+' : '') + (Math.round(r * 10) / 10) + '%' };
+  };
   for (const [m, v] of t.path) {
     const r = (v / 100 / t.e - 1) * 100;
     last = r;
     if (!trimmed) {
-      if (r >= 23) trimmed = true;
-      else if (useSwing && swingBreakM != null && m >= swingBreakM) return { r, txt: 'never reached +23%; stopped when a 5m candle closed past the entry swing' };
-      else if (!useSwing && r <= -30) return { r: -30, txt: 'never reached +23%; hit the assumed −30% stop' };
-    } else if (r <= 0) return { r: 11.5, txt: 'half off at +23%, rest stopped at break-even' };
+      if (r >= T - 1e-9) trimmed = true;
+      else if (useSwing && swingBreakM != null && m >= swingBreakM) return { r, txt: 'never reached +' + T + '%; stopped when a 5m candle closed past the entry swing' };
+      else if (!useSwing && r <= -30) return { r: -30, txt: 'never reached +' + T + '%; hit the assumed −30% stop' };
+    } else if (r <= 0) return half(0, 'stopped at break-even');
   }
-  return trimmed ? { r: (23 + last) / 2, txt: 'half off at +23%, rest held to the close' } : { r: last, txt: 'never reached +23%; held to the close' };
+  return trimmed ? half(last, 'held to the close') : { r: last, txt: 'never reached +' + T + '%; held to the close' };
 }
 
-/** Short teaching notes for the results panel (HTML with <b> only; no user content). */
 export interface ChartFacts { div15?: Divergence[]; div5?: Divergence[]; swing?: number | null; swingBreakM?: number | null }
 /** How often Bear traded against a 4h RSI outside its bands, across all trades. */
 export interface FadeStat { n: number; against: number }

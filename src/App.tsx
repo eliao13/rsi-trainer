@@ -92,7 +92,7 @@ export function App() {
   // Starting a round loads the trade's option prices and messages first (one month file, cached).
   const wanted = useRef<number | null>(null);
   const start = useCallback((ti: TradeIndex, extra?: (t: Trade) => Partial<Round>) => {
-    wanted.current = ti.id; setPending(ti); setR(null); setSeries(null); window.scrollTo(0, 0);
+    wanted.current = ti.id; setPending(ti); setR(null); setSeries(null); setFlashSize(false); window.scrollTo(0, 0);
     loadTrade(ti).then((t) => {
       if (wanted.current !== ti.id) return;
       setPending(null);
@@ -122,12 +122,12 @@ export function App() {
   };
   const patchAnswer = useCallback((id: number, patch: Partial<Answer>) => updateSaved((s) => ({ ...s, a: { ...s.a, [id]: { ...s.a[id], ...patch } as Answer } })), [updateSaved]);
 
-  const pickSize = (size: Size) => { const r = roundRef.current; if (r && r.stage === 'guess' && sizeable(r.trade)) setR({ ...r, size }); };
+  const pickSize = (size: Size) => { const r = roundRef.current; if (r && r.stage === 'guess' && sizeable(r.trade)) { setR({ ...r, size }); setFlashSize(false); } };
 
   const answer = (g: Side) => {
     const r = roundRef.current; if (!r || r.stage !== 'guess') return;
     const t = r.trade;
-    if (sizeable(t) && !r.size) { setFlashSize(true); setTimeout(() => setFlashSize(false), 500); return; }
+    if (sizeable(t) && !r.size) { setFlashSize(true); return; } // stays until a size is picked
     const prevNote = saved.a[t.id]?.note || '';
     updateSaved((s) => {
       const sk = { ...(s.skips || {}) }; delete sk[t.id]; // answering a skipped trade un-skips it
