@@ -2,6 +2,13 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.4.1
+- Trim posts like "TRIMMM!" or a bare "TRIM!" count in Bear's result
+- Bear's exit is read from his messages ("close it out here", "all out", "taking full profit", "stopped out"), so "Best the option reached" says when the peak came after he was out, even with no trims posted
+- The "Sold" label moves aside when it would cover the "swing stop" label
+- Desktop: the chart height is measured from where it starts on the page, so the gap below it is the same at every window size (and large monitors fill up to 1400px)
+- While playing, the chart's right edge is labelled with its time (e.g. "12:00 →")
+
 ## 2.4.0
 - Desktop: the chart sizes to the window instead of a fixed 560px, so there's no empty space under it while playing
 - While playing, the chart shows one hour past the replay cursor (growing as you step) instead of a mostly empty rest of day; the full day appears at review

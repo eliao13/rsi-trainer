@@ -2,7 +2,7 @@ import type { Answer, RsiState, Side, Size, Trade, UserExit } from '../types';
 import type { ChartFacts, FadeStat } from '../lib/trade';
 import { bearStyle, lessonLines, maxStep, pctAt, postedTrims, sideName, sizeable } from '../lib/trade';
 import { pct, tone } from '../lib/format';
-import { trimPostsWithoutPct } from '../lib/messages';
+import { exitMinute, trimPostsWithoutPct } from '../lib/messages';
 import { ChartImage } from './ChartImage';
 
 interface Props {
@@ -29,7 +29,7 @@ export function Results({ trade: t, facts, fade, guess, size, userExit, answer: 
   const bestUpdate = updates.length ? Math.max(...updates) : null;
   const noPct = trimPostsWithoutPct(t, maxStep(t));
   const tookProfit = trims.length > 0 || noPct > 0;
-  const lastPost = Math.max(0, ...t.ev.filter((e) => e.k === 'trim' || e.k === 'update').map((e) => e.m));
+  const exitM = exitMinute(t, maxStep(t)); // when he said he was out, or his last trim/update
   rows.push(
     ["Bear's result (his posts)", tookProfit || bestUpdate != null
       ? <>{trims.length ? 'Trimmed at ' + trims.map(pct).join(', ') : noPct ? 'Trimmed (no % given)' : 'No trims posted'}
@@ -37,7 +37,7 @@ export function Results({ trade: t, facts, fade, guess, size, userExit, answer: 
           {bestUpdate != null && (!trims.length || bestUpdate > Math.max(...trims)) ? <span style={{ fontWeight: 400 }}> · best update {pct(bestUpdate)}</span> : null}</>
       : <span className="dim">No trims or updates posted</span>],
     ['Estimates from the price model', ''],
-    ['Best the option reached', <><Pct v={t.mx} /> after {t.mxm} min</>, tookProfit && lastPost > 0 && t.mxm >= lastPost + 5 ? 'This came after his last post (' + Math.round(lastPost) + ' min): what holding on would have paid, not what he got.' : undefined],
+    ['Best the option reached', <><Pct v={t.mx} /> after {t.mxm} min</>, exitM != null && t.mxm >= exitM + 5 ? 'This came after Bear was out (' + Math.round(exitM) + ' min in): what holding on would have paid, not what he got.' : undefined],
     ['Option at the close', <Pct v={closeP} />],
     ['Chart stop (5m close past entry swing)', !facts.ready ? <span className="dim">…</span> : facts.swingBreakM != null ? <><Pct v={pctAt(t, facts.swingBreakM)} /> after {facts.swingBreakM} min</> : 'Never hit'],
     ['Rule-based exit (estimate)', <Pct v={bs.r} />, bs.txt.charAt(0).toUpperCase() + bs.txt.slice(1) + '.'],

@@ -118,3 +118,22 @@ describe('review round 2', () => {
     expect(n('trimming NVDA here')).toBe(0); // another ticker: not this trade
   });
 });
+
+describe('v2.4.1', () => {
+  it('counts elongated and bare trims', async () => {
+    const { trimPostsWithoutPct } = await import('./messages');
+    const n = (x: string) => trimPostsWithoutPct(trade({ ev: [{ m: 5, k: 'note', x }] }), 60);
+    expect(n('TRIMMM!')).toBe(1);
+    expect(n('TRIM!')).toBe(1);
+    expect(n('trim level here')).toBe(0);
+  });
+  it("finds Bear's exit from his messages, not his plans", async () => {
+    const { exitMinute } = await import('./messages');
+    const at = (x: string) => exitMinute(trade({ ev: [{ m: 20, k: 'note', x }] }), 60);
+    expect(at('Scalp aint scalping, close it out here')).toBe(20);
+    expect(at('ALL OUT!')).toBe(20);
+    expect(at('Taking full profit ladies')).toBe(20);
+    expect(at('will close it out if we break this')).toBeNull();
+    expect(exitMinute(trade({ ev: [{ m: 4, k: 'trim', p: 20 }, { m: 9, k: 'update', p: 35 }] }), 60)).toBe(9); // no exit post: last trim/update
+  });
+});

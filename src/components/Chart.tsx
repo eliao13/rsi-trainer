@@ -26,9 +26,20 @@ export function Chart(props: Props) {
   useEffect(() => {
     const cv = ref.current; if (!cv) return;
     const ro = new ResizeObserver(() => setSize(cv.clientWidth * 10000 + cv.clientHeight));
-    ro.observe(cv); return () => ro.disconnect();
+    ro.observe(cv);
+    const onWin = () => setSize(window.innerWidth * 10000 + window.innerHeight); // height changes don't resize the canvas itself
+    window.addEventListener('resize', onWin);
+    return () => { ro.disconnect(); window.removeEventListener('resize', onWin); };
   }, []);
-  useEffect(() => { if (ref.current) geo.current = draw(ref.current, props, hover); }); // cheap enough to redraw every render
+  useEffect(() => {
+    const cv = ref.current; if (!cv) return;
+    if (window.innerWidth > 1000) { // desktop: fill the window below the chart's own top (header height varies)
+      const topY = cv.getBoundingClientRect().top + window.scrollY, below = 34; // card padding + page padding
+      const h = Math.max(420, Math.min(1400, Math.round(window.innerHeight - topY - below)));
+      if (cv.style.height !== h + 'px') cv.style.height = h + 'px';
+    } else if (cv.style.height) cv.style.height = ''; // tablets and phones: CSS sizes it to clear the pinned bar
+    geo.current = draw(cv, props, hover);
+  }); // cheap enough to redraw every render
   // animate the loading bar only while a loading message is up
   const loadingMsg = props.message && !props.trade ? props.message : undefined;
   useEffect(() => {
@@ -86,6 +97,7 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
   let lo = Infinity, hi = -Infinity;
   for (let i = i0; i < nb; i++) { if (B.l[i] < lo) lo = B.l[i]; if (B.h[i] > hi) hi = B.h[i]; }
   const showSwing = stage !== 'guess' && swing != null;
+  let swingBox: [number, number, number, number] | null = null; // x, y, w, h of the "swing stop" label
   if (showSwing) { lo = Math.min(lo, swing as number); hi = Math.max(hi, swing as number); }
   const pad = (hi - lo) * 0.06 || 1; lo -= pad; hi += pad;
   const yp = (v: number) => top + ((hi - v) / (hi - lo)) * hP;
@@ -97,6 +109,8 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
   }
   let lastDay = '';
   const everyN = Math.max(1, Math.round(70 / bw));
+  // while playing on a wide screen, say what time the right edge is (the window grows as you step)
+  const edgeLabel = wide && stage !== 'done';
   for (let i = i0; i < i0 + slots; i++) {
     if (i >= nb && !wide) break;
     const ts = i < nb ? B.t[i] : B.t[nb - 1] + (i - nb + 1) * barSec, dte = new Date(ts * 1000), dayS = fmtMD.format(dte);
@@ -104,7 +118,7 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
       if (lastDay || i > i0) { x.strokeStyle = '#2a3142'; x.setLineDash([2, 4]); x.beginPath(); x.moveTo(xi(i) - bw / 2, top); x.lineTo(xi(i) - bw / 2, H - 22); x.stroke(); x.setLineDash([]); }
       x.fillStyle = '#5b8def'; x.fillText(dayS, xi(i) - bw / 2 + 4, H - 6); lastDay = dayS;
     }
-    if ((i - i0) % everyN === 0 && xi(i) > 22 && xi(i) < W - padR - 16) { x.fillStyle = '#8b93a7'; x.textAlign = 'center'; x.fillText(fmtET.format(dte), xi(i), H - 18); x.textAlign = 'left'; }
+    if ((i - i0) % everyN === 0 && xi(i) > 22 && xi(i) < W - padR - (edgeLabel ? 70 : 16)) { x.fillStyle = '#8b93a7'; x.textAlign = 'center'; x.fillText(fmtET.format(dte), xi(i), H - 18); x.textAlign = 'left'; }
   }
   for (let i = i0; i < nb; i++) {
     const up = B.c[i] >= B.o[i]; x.strokeStyle = x.fillStyle = up ? '#2ebd85' : '#f6465d';
@@ -119,6 +133,11 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
     const ly = ys + (cur.r === 'C' ? 11 : -11), lw = x.measureText(lbl).width + 10, lx = W - padR - lw - 4;
     x.fillStyle = 'rgba(11,14,20,.9)'; x.fillRect(lx, ly - 8, lw, 16);
     x.fillStyle = 'rgba(246,70,93,.95)'; x.fillText(lbl, lx + 5, ly);
+    swingBox = [lx, ly - 8, lw, 16];
+  }
+  if (edgeLabel) {
+    const edgeT = B.t[nb - 1] + (i0 + slots - nb) * barSec, txt = fmtET.format(new Date(edgeT * 1000)) + ' →';
+    x.fillStyle = '#5b8def'; x.textAlign = 'right'; x.fillText(txt, W - padR - 2, H - 18); x.textAlign = 'left';
   }
   const divColor = (d: Divergence) => (d.type === 'bull' ? '#2ebd85' : '#f6465d');
   const showDivs = stage !== 'guess' && divs ? divs.filter((d) => d.i1 >= i0 && d.i2 < nb) : [];
@@ -154,7 +173,12 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
       x.strokeStyle = '#fff'; x.setLineDash([2, 3]); x.beginPath(); x.moveTo(xu, top); x.lineTo(xu, top + hP); x.stroke(); x.setLineDash([]);
       // label with the time and result, kept on screen
       const lbl = 'Sold ' + fmtET.format(new Date((entrySec + userExit.m * 60) * 1000)) + ' ' + (userExit.p >= 0 ? '+' : '') + userExit.p.toFixed(0) + '%';
-      const lw = x.measureText(lbl).width + 8, lx = Math.min(xu + 4, W - padR - lw - 2), ly = top + 24;
+      const lw = x.measureText(lbl).width + 8, lx = Math.min(xu + 4, W - padR - lw - 2);
+      let ly = top + 24;
+      if (swingBox) { // move it clear of the "swing stop" label if they would overlap
+        const [sx, sy, sw, sh] = swingBox, hits = (y: number) => lx - 2 < sx + sw && lx - 2 + lw > sx && y - 8 < sy + sh && y + 8 > sy;
+        if (hits(ly)) ly = sy + sh + 12 < top + hP - 8 ? sy + sh + 12 : sy - 12;
+      }
       x.fillStyle = 'rgba(11,14,20,.85)'; x.fillRect(lx - 2, ly - 8, lw, 16);
       x.fillStyle = userExit.p >= 0 ? '#2ebd85' : '#f6465d'; x.fillText(lbl, lx + 2, ly);
     }

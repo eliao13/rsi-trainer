@@ -57,9 +57,24 @@ export function timeline(t: Trade, step: number) {
 
 // "Trimming to runners here", "took my trim", "trimmed half": a trim taken, with no % attached.
 // Not "back at trim level", "looking to trim" or "if you want to trim", which name a level or a plan.
-const TRIM_DONE = /\b(trimm(ing|ed)|took (a |my |some )?trims?|taking (a |my |some )?trims?|trim(ming)? (here|now|half|some|more|to runners|the rest))\b/i;
+const TRIM_DONE = /\b(trimm(ing|ed)|trimm+|took (a |my |some )?trims?|taking (a |my |some )?trims?|trim(ming)? (here|now|half|some|more|to runners|the rest))\b|^\W*trim\W*$/i; // also "TRIMMM!" and a bare "TRIM!"
 const TRIM_NOT = /\b(trim level|at trim|trim (target|zone|area|spot)|will trim|looking to trim|want to trim|plan to trim|wanna trim|if you|could trim|can trim|should trim|before trim)\b/i;
 /** Bear's messages on this trade (as the timeline shows them) that report a trim but give no %. */
 export function trimPostsWithoutPct(t: Trade, step: number): number {
   return timeline(t, step).shown.filter((e) => e.k === 'note' && !!e.x && TRIM_DONE.test(e.x) && !TRIM_NOT.test(e.x) && !/\d\s?%/.test(e.x)).length;
+}
+
+// Bear saying he's out: "close it out here", "all out", "taking full profit", "stopped out the rest".
+const EXIT_DONE = /\b(clos(e|ing) (it |them |this |these |the rest |everything )?(out|here)|closing (it|them|this|these|the rest|for profit)|all out|out the rest|fully (out|closed)|full profit|stopped out|cut (it|the rest|them)|took (it|the rest) off|done with (this|these|it))\b/i;
+const EXIT_NOT = /\b(if|will|would|might|could|gonna|going to|plan|looking to|thinking|before)\b/i;
+/**
+ * When Bear said he was out of this trade: the first exit message in the trade's timeline, else
+ * his last trim or update. Null if neither.
+ */
+export function exitMinute(t: Trade, step: number): number | null {
+  const { shown } = timeline(t, step);
+  const exit = shown.find((e) => e.k === 'note' && !!e.x && EXIT_DONE.test(e.x) && !EXIT_NOT.test(e.x));
+  if (exit) return exit.m;
+  const last = shown.filter((e) => e.k === 'trim' || e.k === 'update').map((e) => e.m);
+  return last.length ? Math.max(...last) : null;
 }
