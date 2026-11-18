@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Series, Stage, Trade, UserExit } from '../types';
 import type { Divergence } from '../lib/divergence';
-import { aggBars, bands, niceStep, rsi } from '../lib/indicators';
+import { aggBars, bands, niceStep, rsi, trama } from '../lib/indicators';
 import { fmtET, fmtMD } from '../lib/format';
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
   step: number; tf: number; stage: Stage; userExit: UserExit | null;
   swing?: number | null; // entry swing level (shown after answering)
   divs?: Divergence[]; // divergences on this timeframe, as indexes into its bars (shown after answering)
+  showTrama?: boolean; // TRAMA 34 overlay
 }
 interface Geo { i0: number; bw: number; padL: number; nb: number }
 
@@ -60,18 +61,18 @@ export function Chart(props: Props) {
   return <canvas id="chart" ref={ref} onPointerMove={onPointer} onPointerDown={onPointer} onPointerLeave={() => setHover(null)} />;
 }
 
-function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, stage, userExit, swing, divs }: Props, hover: number | null): Geo | null {
+function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, stage, userExit, swing, divs, showTrama }: Props, hover: number | null): Geo | null {
   const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
   cv.width = W * dpr; cv.height = H * dpr;
   const x = cv.getContext('2d')!; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
   if (!cur || !series || !series.t.length) {
     const msg = message || (cur ? (series ? 'No chart data for this day.' : 'Loading chart…') : '');
-    x.fillStyle = '#8b93a7'; x.font = '15px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillStyle = '#7D878C'; x.font = "15px 'IBM Plex Sans Condensed', system-ui"; x.textAlign = 'center'; x.textBaseline = 'middle';
     x.fillText(msg, W / 2, H / 2);
     if (msg) { // a small pulsing bar so it reads as loading, not broken
       const ph = (Date.now() / 600) % 1, bw0 = Math.min(160, W * 0.4);
-      x.fillStyle = '#262c3a'; x.fillRect(W / 2 - bw0 / 2, H / 2 + 18, bw0, 3);
-      x.fillStyle = '#5b8def'; x.fillRect(W / 2 - bw0 / 2 + ph * (bw0 - 40), H / 2 + 18, 40, 3);
+      x.fillStyle = '#23282B'; x.fillRect(W / 2 - bw0 / 2, H / 2 + 18, bw0, 3);
+      x.fillStyle = '#F0A830'; x.fillRect(W / 2 - bw0 / 2 + ph * (bw0 - 40), H / 2 + 18, 40, 3);
     }
     return null;
   }
@@ -101,11 +102,11 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
   if (showSwing) { lo = Math.min(lo, swing as number); hi = Math.max(hi, swing as number); }
   const pad = (hi - lo) * 0.06 || 1; lo -= pad; hi += pad;
   const yp = (v: number) => top + ((hi - v) / (hi - lo)) * hP;
-  x.font = '11px system-ui'; x.textBaseline = 'middle';
+  x.font = "11px 'IBM Plex Mono', ui-monospace, monospace"; x.textBaseline = 'middle';
   const stepP = niceStep((hi - lo) / (wide ? 6 : 5));
   for (let p = Math.ceil(lo / stepP) * stepP; p < hi; p += stepP) {
-    x.strokeStyle = '#1b2130'; x.beginPath(); x.moveTo(padL, yp(p)); x.lineTo(W - padR, yp(p)); x.stroke();
-    x.fillStyle = '#8b93a7'; x.fillText(p.toFixed(stepP < 1 ? 2 : stepP < 10 ? 1 : 0), W - padR + 6, yp(p));
+    x.strokeStyle = '#1B1F21'; x.beginPath(); x.moveTo(padL, yp(p)); x.lineTo(W - padR, yp(p)); x.stroke();
+    x.fillStyle = '#7D878C'; x.fillText(p.toFixed(stepP < 1 ? 2 : stepP < 10 ? 1 : 0), W - padR + 6, yp(p));
   }
   let lastDay = '';
   const everyN = Math.max(1, Math.round(70 / bw));
@@ -115,31 +116,40 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
     if (i >= nb && !wide) break;
     const ts = i < nb ? B.t[i] : B.t[nb - 1] + (i - nb + 1) * barSec, dte = new Date(ts * 1000), dayS = fmtMD.format(dte);
     if (dayS !== lastDay && i < nb) {
-      if (lastDay || i > i0) { x.strokeStyle = '#2a3142'; x.setLineDash([2, 4]); x.beginPath(); x.moveTo(xi(i) - bw / 2, top); x.lineTo(xi(i) - bw / 2, H - 22); x.stroke(); x.setLineDash([]); }
-      x.fillStyle = '#5b8def'; x.fillText(dayS, xi(i) - bw / 2 + 4, H - 6); lastDay = dayS;
+      if (lastDay || i > i0) { x.strokeStyle = '#2E3437'; x.setLineDash([2, 4]); x.beginPath(); x.moveTo(xi(i) - bw / 2, top); x.lineTo(xi(i) - bw / 2, H - 22); x.stroke(); x.setLineDash([]); }
+      x.fillStyle = '#9AA4A9'; x.fillText(dayS, xi(i) - bw / 2 + 4, H - 6); lastDay = dayS;
     }
-    if ((i - i0) % everyN === 0 && xi(i) > 22 && xi(i) < W - padR - (edgeLabel ? 70 : 16)) { x.fillStyle = '#8b93a7'; x.textAlign = 'center'; x.fillText(fmtET.format(dte), xi(i), H - 18); x.textAlign = 'left'; }
+    if ((i - i0) % everyN === 0 && xi(i) > 22 && xi(i) < W - padR - (edgeLabel ? 70 : 16)) { x.fillStyle = '#7D878C'; x.textAlign = 'center'; x.fillText(fmtET.format(dte), xi(i), H - 18); x.textAlign = 'left'; }
   }
   for (let i = i0; i < nb; i++) {
-    const up = B.c[i] >= B.o[i]; x.strokeStyle = x.fillStyle = up ? '#2ebd85' : '#f6465d';
-    x.beginPath(); x.moveTo(xi(i), yp(B.h[i])); x.lineTo(xi(i), yp(B.l[i])); x.stroke();
+    // up candles hollow blue, down candles solid orange: shape and colour both carry direction
+    const up = B.c[i] >= B.o[i]; x.strokeStyle = x.fillStyle = up ? '#63B3ED' : '#F08A3C';
     const y1 = yp(Math.max(B.o[i], B.c[i])), y2 = yp(Math.min(B.o[i], B.c[i]));
-    x.fillRect(xi(i) - Math.max(1, bw * 0.35), y1, Math.max(2, bw * 0.7), Math.max(1, y2 - y1));
+    const cw = Math.max(2, bw * 0.64), cx = xi(i) - cw / 2, ch = Math.max(1, y2 - y1);
+    x.beginPath(); x.moveTo(xi(i), yp(B.h[i])); x.lineTo(xi(i), y1); x.moveTo(xi(i), y1 + ch); x.lineTo(xi(i), yp(B.l[i])); x.stroke();
+    if (up && cw >= 4) x.strokeRect(Math.round(cx) + 0.5, Math.round(y1) + 0.5, Math.round(cw) - 1, Math.max(1, Math.round(ch) - 1));
+    else x.fillRect(cx, y1, cw, ch);
+  }
+  if (showTrama) { // TRAMA 34 on this timeframe, computed over all bars so it is settled by the first one shown
+    const T = trama(B.h, B.l, B.c, 34);
+    x.strokeStyle = '#C9A6FF'; x.lineWidth = 1.8; x.beginPath(); let st = false;
+    for (let j = i0; j < nb; j++) { const v = T[j]; if (v == null) continue; if (!st) { x.moveTo(xi(j), yp(v)); st = true; } else x.lineTo(xi(j), yp(v)); }
+    x.stroke(); x.lineWidth = 1;
   }
   if (showSwing) {
     const ys = yp(swing as number), lbl = 'swing stop'; // short: it sits beside the axis; the lesson explains the rule
-    x.strokeStyle = 'rgba(246,70,93,.8)'; x.setLineDash([6, 4]); x.beginPath(); x.moveTo(padL, ys); x.lineTo(W - padR, ys); x.stroke(); x.setLineDash([]);
+    x.strokeStyle = 'rgba(240,138,60,.85)'; x.setLineDash([6, 4]); x.beginPath(); x.moveTo(padL, ys); x.lineTo(W - padR, ys); x.stroke(); x.setLineDash([]);
     // right end of the line, beside the price axis: the empty rest-of-day area on desktop
     const ly = ys + (cur.r === 'C' ? 11 : -11), lw = x.measureText(lbl).width + 10, lx = W - padR - lw - 4;
-    x.fillStyle = 'rgba(11,14,20,.9)'; x.fillRect(lx, ly - 8, lw, 16);
-    x.fillStyle = 'rgba(246,70,93,.95)'; x.fillText(lbl, lx + 5, ly);
+    x.fillStyle = 'rgba(14,17,18,.92)'; x.fillRect(lx, ly - 8, lw, 16);
+    x.fillStyle = '#F08A3C'; x.fillText(lbl, lx + 5, ly);
     swingBox = [lx, ly - 8, lw, 16];
   }
   if (edgeLabel) {
     const edgeT = B.t[nb - 1] + (i0 + slots - nb) * barSec, txt = fmtET.format(new Date(edgeT * 1000)) + ' →';
-    x.fillStyle = '#5b8def'; x.textAlign = 'right'; x.fillText(txt, W - padR - 2, H - 18); x.textAlign = 'left';
+    x.fillStyle = '#F0A830'; x.textAlign = 'right'; x.fillText(txt, W - padR - 2, H - 18); x.textAlign = 'left';
   }
-  const divColor = (d: Divergence) => (d.type === 'bull' ? '#2ebd85' : '#f6465d');
+  const divColor = (d: Divergence) => (d.type === 'bull' ? '#63B3ED' : '#F08A3C');
   const showDivs = stage !== 'guess' && divs ? divs.filter((d) => d.i1 >= i0 && d.i2 < nb) : [];
   for (const d of showDivs) {
     const v1 = d.type === 'bull' ? B.l[d.i1] : B.h[d.i1], v2 = d.type === 'bull' ? B.l[d.i2] : B.h[d.i2];
@@ -151,26 +161,26 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
     for (let j = d.i1; j <= d.i2; j++) ext = d.type === 'bull' ? Math.min(ext, B.l[j]) : Math.max(ext, B.h[j]);
     const dy = Math.min(top + hP - 8, Math.max(top + 28, yp(ext) + (d.type === 'bull' ? 14 : -14)));
     const dx = Math.max(padL + 4, Math.min((xi(d.i1) + xi(d.i2)) / 2 - dw / 2, W - padR - dw - 8));
-    x.fillStyle = 'rgba(11,14,20,.85)'; x.fillRect(dx - 3, dy - 8, x.measureText(dl).width + 6, 16);
+    x.fillStyle = 'rgba(14,17,18,.88)'; x.fillRect(dx - 3, dy - 8, x.measureText(dl).width + 6, 16);
     x.fillStyle = divColor(d); x.fillText(dl, dx, dy);
   }
   const xe = padL + (ie - i0 + 1) * bw + ((entrySec - (B.t[ie] + barSec)) / barSec) * bw;
   if (xe > padL) {
-    x.strokeStyle = '#e6b450'; x.setLineDash([5, 4]); x.beginPath(); x.moveTo(xe, top); x.lineTo(xe, H - 28); x.stroke(); x.setLineDash([]);
+    x.strokeStyle = '#F0A830'; x.setLineDash([5, 4]); x.beginPath(); x.moveTo(xe, top); x.lineTo(xe, H - 28); x.stroke(); x.setLineDash([]);
     const et = stage === 'guess' ? 'RSI Trader enters here' : 'Entry';
-    x.fillStyle = '#e6b450'; x.fillText(et, Math.min(xe + 5, W - padR - x.measureText(et).width - 4), top + 8);
+    x.fillStyle = '#F0A830'; x.fillText(et, Math.min(xe + 5, W - padR - x.measureText(et).width - 4), top + 8);
   }
   const lp = B.c[nb - 1];
-  x.fillStyle = '#5b8def'; x.fillRect(W - padR + 2, yp(lp) - 8, padR - 4, 16); x.fillStyle = '#fff'; x.fillText(lp.toFixed(lp > 2000 ? 1 : 2), W - padR + 5, yp(lp));
+  x.fillStyle = '#F0A830'; x.fillRect(W - padR + 2, yp(lp) - 8, padR - 4, 16); x.fillStyle = '#0E1112'; x.fillText(lp.toFixed(lp > 2000 ? 1 : 2), W - padR + 5, yp(lp));
   if (stage !== 'guess') for (const e of cur.ev) {
     if (e.k !== 'trim' || e.m > step) continue;
     const xs = xe + ((e.m * 60) / barSec) * bw; if (xs < padL) continue;
-    x.fillStyle = '#5b8def'; x.beginPath(); x.moveTo(xs, top + hP - 4); x.lineTo(xs - 5, top + hP + 6); x.lineTo(xs + 5, top + hP + 6); x.fill();
+    x.fillStyle = '#F0A830'; x.beginPath(); x.moveTo(xs, top + hP - 4); x.lineTo(xs - 5, top + hP + 6); x.lineTo(xs + 5, top + hP + 6); x.fill();
   }
   if (userExit && stage !== 'guess') {
     const xu = xe + ((userExit.m * 60) / barSec) * bw;
     if (xu > padL) {
-      x.strokeStyle = '#fff'; x.setLineDash([2, 3]); x.beginPath(); x.moveTo(xu, top); x.lineTo(xu, top + hP); x.stroke(); x.setLineDash([]);
+      x.strokeStyle = '#63B3ED'; x.setLineDash([2, 3]); x.beginPath(); x.moveTo(xu, top); x.lineTo(xu, top + hP); x.stroke(); x.setLineDash([]);
       // label with the time and result, kept on screen
       const lbl = 'Sold ' + fmtET.format(new Date((entrySec + userExit.m * 60) * 1000)) + ' ' + (userExit.p >= 0 ? '+' : '') + userExit.p.toFixed(0) + '%';
       const lw = x.measureText(lbl).width + 8, lx = Math.min(xu + 4, W - padR - lw - 2);
@@ -179,26 +189,26 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
         const [sx, sy, sw, sh] = swingBox, hits = (y: number) => lx - 2 < sx + sw && lx - 2 + lw > sx && y - 8 < sy + sh && y + 8 > sy;
         if (hits(ly)) ly = sy + sh + 12 < top + hP - 8 ? sy + sh + 12 : sy - 12;
       }
-      x.fillStyle = 'rgba(11,14,20,.85)'; x.fillRect(lx - 2, ly - 8, lw, 16);
-      x.fillStyle = userExit.p >= 0 ? '#2ebd85' : '#f6465d'; x.fillText(lbl, lx + 2, ly);
+      x.fillStyle = 'rgba(14,17,18,.88)'; x.fillRect(lx - 2, ly - 8, lw, 16);
+      x.fillStyle = userExit.p >= 0 ? '#63B3ED' : '#F08A3C'; x.fillText(lbl, lx + 2, ly);
     }
   }
   // RSI panel
   const R = rsi(B.c), bb = bands(R), yr = (v: number) => yR0 + ((100 - v) / 100) * hR;
-  x.strokeStyle = '#1b2130';
-  for (const v of [30, 50, 70]) { x.beginPath(); x.moveTo(padL, yr(v)); x.lineTo(W - padR, yr(v)); x.stroke(); x.fillStyle = '#8b93a7'; x.fillText(String(v), W - padR + 6, yr(v)); }
-  x.strokeStyle = '#262c3a'; x.strokeRect(padL, yR0, W - padL - padR, hR);
+  x.strokeStyle = '#1B1F21';
+  for (const v of [30, 50, 70]) { x.beginPath(); x.moveTo(padL, yr(v)); x.lineTo(W - padR, yr(v)); x.stroke(); x.fillStyle = '#7D878C'; x.fillText(String(v), W - padR + 6, yr(v)); }
+  x.strokeStyle = '#23282B'; x.strokeRect(padL, yR0, W - padL - padR, hR);
   const line = (arr: (number | null)[], color: string, width: number) => {
     x.strokeStyle = color; x.lineWidth = width; x.beginPath(); let st = false;
     for (let j = i0; j < nb; j++) { const v = arr[j]; if (v == null) continue; if (!st) { x.moveTo(xi(j), yr(v)); st = true; } else x.lineTo(xi(j), yr(v)); }
     x.stroke(); x.lineWidth = 1;
   };
-  line(bb.up, 'rgba(230,180,80,.7)', 1); line(bb.lo, 'rgba(230,180,80,.7)', 1); line(bb.mid, 'rgba(200,170,230,.9)', 1.2); line(R, '#9fe3f0', 1.6);
+  line(bb.up, '#5B6469', 1); line(bb.lo, '#5B6469', 1); line(bb.mid, '#B89AE0', 1.2); line(R, '#9fe3f0', 1.6);
   for (const d of showDivs) {
     const r1 = R[d.i1], r2 = R[d.i2]; if (r1 == null || r2 == null) continue;
     x.strokeStyle = divColor(d); x.lineWidth = 2; x.beginPath(); x.moveTo(xi(d.i1), yr(r1)); x.lineTo(xi(d.i2), yr(r2)); x.stroke(); x.lineWidth = 1;
   }
-  x.fillStyle = '#8b93a7';
+  x.fillStyle = '#7D878C';
   x.fillText('RSI ' + (R[nb - 1] == null ? '' : (R[nb - 1] as number).toFixed(1)) + '   median ' + (bb.mid[nb - 1] == null ? '' : (bb.mid[nb - 1] as number).toFixed(1)), padL + 6, yR0 + 10);
   x.fillText(cur.ci + ' · ' + tf + ' min', padL + 6, top + 8);
   if (hover != null && hover >= i0 && hover < nb) { // crosshair readout
@@ -206,7 +216,7 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
     x.strokeStyle = 'rgba(255,255,255,.35)'; x.beginPath(); x.moveTo(hx, top); x.lineTo(hx, yR0 + hR); x.stroke();
     const txt = fmtMD.format(d) + ' ' + fmtET.format(d) + '  O ' + B.o[hover].toFixed(2) + '  H ' + B.h[hover].toFixed(2) + '  L ' + B.l[hover].toFixed(2) + '  C ' + B.c[hover].toFixed(2) + (rv == null ? '' : '  RSI ' + rv.toFixed(1) + (mv == null ? '' : ' (med ' + mv.toFixed(1) + ')'));
     const tw = Math.min(W - padR - padL - 8, x.measureText(txt).width + 12);
-    x.fillStyle = 'rgba(23,27,36,.95)'; x.fillRect(padL + 4, top + 18, tw, 20); x.fillStyle = '#e6e9ef'; x.fillText(txt, padL + 10, top + 28, tw - 12);
+    x.fillStyle = 'rgba(18,22,23,.96)'; x.fillRect(padL + 4, top + 18, tw, 20); x.fillStyle = '#D9DEE0'; x.fillText(txt, padL + 10, top + 28, tw - 12);
   }
   return { i0, bw, padL, nb };
 }

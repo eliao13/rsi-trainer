@@ -36,6 +36,9 @@ export function App() {
   const [loadError, setLoadError] = useState(false);
   const [saved, updateSaved] = useSaved();
   const [round, setRound] = useState<Round | null>(null);
+  // TRAMA overlay on/off, remembered per browser
+  const [showTrama, setShowTramaState] = useState(() => { try { return localStorage.getItem('rsiTrama') !== '0'; } catch { return true; } });
+  const setShowTrama = (on: boolean) => { setShowTramaState(on); try { localStorage.setItem('rsiTrama', on ? '1' : '0'); } catch { /* blocked */ } };
   const [series, setSeries] = useState<Series | null>(null);
   const [tf, setTf] = useState(5);
   const [m1, setM1] = useState<Series | null>(null);
@@ -221,8 +224,9 @@ export function App() {
               : !trades && <span className="dim">Loading RSI Trader's trades…</span>}
           </div>
           <div className="tf">Chart: {m1Avail && <button id="tf1" className={tf === 1 ? 'on' : ''} onClick={() => setTf(1)} title="1-minute bars for timing exits">1 min</button>}<button id="tf5" className={tf === 5 ? 'on' : ''} onClick={() => setTf(5)}>5 min</button><button id="tf15" className={tf === 15 ? 'on' : ''} onClick={() => setTf(15)}>15 min</button>
-            <span className="tfnote">RSI 14 with Bollinger Bands on the RSI (34-bar median, 2σ). Tap or hover the chart to read a candle.</span></div>
-          <Chart trade={t || null} message={loadingMsg} series={tf === 1 ? m1 : series} step={round?.step || 0} tf={tf} stage={round?.stage || 'guess'} userExit={round?.userExit || null}
+            <span className="tfnote">RSI 14 with Bollinger Bands on the RSI (34-bar median, 2σ). Tap or hover the chart to read a candle.</span>
+            <span className="legend"><button className="tr" aria-pressed={showTrama} onClick={() => setShowTrama(!showTrama)} title="Show or hide TRAMA (length 34)">━ TRAMA 34</button></span></div>
+          <Chart showTrama={showTrama} trade={t || null} message={loadingMsg} series={tf === 1 ? m1 : series} step={round?.step || 0} tf={tf} stage={round?.stage || 'guess'} userExit={round?.userExit || null}
             swing={facts.swing} divs={tf === 5 ? facts.div5 : tf === 15 ? facts.div15 : undefined} />
         </section>
         {round && t && round.stage === 'done' && (<Results trade={t} facts={facts} fade={fade} guess={round.guess} size={round.size} userExit={round.userExit} answer={saved.a[t.id]} review={round.review} r15={r15}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Trade } from '../types';
-import { aggBars, bands, rsi } from './indicators';
+import { aggBars, bands, rsi, trama } from './indicators';
 import { bearStyle, firstTouch, lessonLines, optAt, pctAt } from './trade';
 import { noteCutoff, relevantFor, timeline } from './messages';
 import { idFromName } from './charts';
@@ -15,6 +15,16 @@ function trade(over: Partial<Trade> = {}): Trade {
 const pathOf = (pcts: number[]): [number, number][] => pcts.map((p, i) => [i + 1, Math.round(100 + p)]);
 
 describe('indicators', () => {
+  it('TRAMA: flat until it has a window, follows a steady trend, holds still in a range', () => {
+    const n = 5, up = Array.from({ length: 40 }, (_, i) => 100 + i);
+    const t = trama(up.map((v) => v + 0.5), up.map((v) => v - 0.5), up, n);
+    expect(t[2 * n - 2]).toBeNull();
+    expect(t[2 * n - 1]).toBe(up[2 * n - 1]); // seeds on the close
+    // every bar makes a new high, so tc = 1 and it tracks the close exactly
+    expect(t[39]).toBeCloseTo(139, 9);
+    const flat = new Array(40).fill(100), ft = trama(flat.map(() => 101), flat.map(() => 99), flat.map((v, i) => v + (i % 2 ? 0.5 : -0.5)), n);
+    expect(ft[39]).toBe(ft[2 * n - 1]); // no new highs or lows: tc = 0, it does not move
+  });
   it('RSI is 100 on a straight rise and 0 on a straight fall', () => {
     const up = Array.from({ length: 30 }, (_, i) => i), down = up.slice().reverse();
     expect(rsi(up)[29]).toBe(100);

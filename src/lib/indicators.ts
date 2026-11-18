@@ -68,3 +68,30 @@ export function niceStep(v: number): number {
   const p = Math.pow(10, Math.floor(Math.log10(v))), f = v / p;
   return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p;
 }
+
+/**
+ * TRAMA, LuxAlgo's Trend Regularity Adaptive Moving Average (same maths as the TradingView script):
+ * tc = SMA(new `n`-bar high or new `n`-bar low ? 1 : 0, n)^2, ama += tc * (close - ama).
+ * Null until the SMA has a full window (bar 2n-1); RSI Trader uses n = 34.
+ */
+export function trama(h: number[], l: number[], c: number[], n = 34): (number | null)[] {
+  const len = c.length, out: (number | null)[] = new Array(len).fill(null);
+  const hit: number[] = new Array(len).fill(0);
+  const hiN = (i: number) => { let m = -Infinity; for (let j = i - n + 1; j <= i; j++) if (h[j] > m) m = h[j]; return m; };
+  const loN = (i: number) => { let m = Infinity; for (let j = i - n + 1; j <= i; j++) if (l[j] < m) m = l[j]; return m; };
+  let prevH = NaN, prevL = NaN, sum = 0, ama: number | null = null;
+  for (let i = 0; i < len; i++) {
+    if (i >= n - 1) {
+      const hh = hiN(i), ll = loN(i);
+      if (i >= n) hit[i] = hh > prevH || ll < prevL ? 1 : 0;
+      prevH = hh; prevL = ll;
+    }
+    sum += hit[i]; if (i >= n) sum -= hit[i - n];
+    if (i >= 2 * n - 1) {
+      const tc = (sum / n) ** 2;
+      ama = ama == null ? c[i] : ama + tc * (c[i] - ama);
+      out[i] = ama;
+    }
+  }
+  return out;
+}
