@@ -166,3 +166,31 @@ button.link { background:none; border:none; padding:0 2px; color:var(--link); fo
 .legend .tr { color:#C9A6FF; } .legend .vw { color:#7FD4C1; }
 .legend button { border:0; padding:2px 4px; font:inherit; color:inherit; }
 .legend button[aria-pressed=false] { opacity:.4; text-decoration:line-through; }
+
+/* review: your calls vs his, and the exits table */
+table.calls-vs { font:13px var(--mono); max-width:620px; }
+table.calls-vs th, table.calls-vs td { padding:7px 8px 7px 0; border-bottom:1px solid #1B1F21; text-align:left; font-weight:400; }
+table.calls-vs thead th { color:var(--dim2); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+table.calls-vs tbody th { color:var(--dim2); width:64px; }
+table.calls-vs td:last-child { text-align:right; width:24px; }
+.mark { font-weight:600; font-size:15px; }
+table.exits { font:13px var(--mono); }
+table.exits th, table.exits td { padding:7px 8px 7px 0; border-bottom:1px solid #1B1F21; vertical-align:middle; font-weight:400; text-align:left; }
+table.exits th { white-space:nowrap; color:var(--text); }
+table.exits td.how { font:14px var(--sans); color:var(--dim); }
+table.exits td.when { color:var(--dim2); white-space:nowrap; text-align:right; }
+table.exits td.bar { width:28%; min-width:90px; }
+table.exits td.val { text-align:right; white-space:nowrap; font-weight:600; }
+table.exits tr.mine th, table.exits tr.mine td { background:#132027; }
+table.exits tr.mine th { color:var(--up); padding-left:6px; }
+table.exits tr.hasnote th, table.exits tr.hasnote td { border-bottom:none; padding-bottom:2px; }
+table.exits tr.note td { font:12px var(--sans); color:var(--dim2); padding-top:0; text-align:left; font-weight:400; }
+.track { position:relative; height:10px; background:#15191A; }
+.track .zero { position:absolute; top:-3px; bottom:-3px; width:1px; background:#5B6469; }
+.track .fill { position:absolute; top:1px; height:8px; }
+.track .fill.up { background:var(--up); } .track .fill.down { background:var(--down); }
+.track .fill.ghost { background:transparent; border:1px dashed var(--up); box-sizing:border-box; }
+@media (max-width:700px) {
+  table.exits td.how { display:none; }
+  table.exits td.bar { width:34%; min-width:60px; }
+}
