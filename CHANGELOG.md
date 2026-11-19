@@ -2,6 +2,11 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.6.0
+- Review screen in the Desk layout: "Your calls vs RSI Trader" (side, size and exit side by side, with ✓/✗)
+- "Exits · same entry, different rules": your exit, his posted trims, the rule-based exit, the chart stop, the best possible (hindsight) and holding to the close, each with a bar from a shared zero line
+- Same numbers and notes as before; on phones the descriptions hide so the bars fit
+
 ## 2.5.1
 - Dropdown lists (filters, exit plan) are dark with readable text instead of light grey on white
 
