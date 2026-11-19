@@ -268,3 +268,10 @@ button.link-row:hover .mono { color:var(--accent); }
   .tf button { padding:4px 8px; }
   .legend { gap:6px; }
 }
+
+/* mistakes pile */
+.pile-note { color:var(--accent); }
+.pile-top { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.pips { display:inline-flex; gap:4px; }
+.pips i { width:9px; height:9px; border:1.5px solid var(--up); display:inline-block; }
+.pips i.on { background:var(--up); }

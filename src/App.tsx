@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Answer, EtfSeries, ExitPlan, Filters, Series, Side, Size, Stage, Trade, TradeIndex, UserExit } from './types';
 import { loadEtf, loadEtfM1, loadM1, loadM1Keys, loadSeries, loadTrade, loadTrades, m1Key } from './lib/data';
 import { useSaved } from './lib/storage';
+import { applyAnswer, seedPile, type PileStatus } from './lib/pile';
 import { aggBars, rsi, rsiAt } from './lib/indicators';
 import { entrySwing, swingBreakMinute } from './lib/levels';
 import { findDivergences } from './lib/divergence';
@@ -21,14 +22,14 @@ import { ChartsDialog } from './components/ChartsDialog';
 const DEFAULT_FILTERS: Filters = { fTod: 'all', fSetup: 'all', fTk: 'all', fYr: 'all', fSeen: 'unseen' };
 const DEFAULT_PLAN: ExitPlan = { t: 0, s: 0 };
 
-function inPool(t: TradeIndex, f: Filters, a: Answer | undefined, skipped: boolean) {
+function inPool(t: TradeIndex, f: Filters, a: Answer | undefined, skipped: boolean, inPile: boolean) {
   return (f.fTod === 'all' || t.tod === f.fTod) && (f.fSetup === 'all' || t.setup === f.fSetup) && (f.fTk === 'all' || t.tk === f.fTk) && (f.fYr === 'all' || t.d.slice(0, 4) === f.fYr) &&
     (f.fSeen === 'any' || (f.fSeen === 'unseen' && !a && !skipped) || (f.fSeen === 'skipped' && skipped && !a) ||
-      (f.fSeen === 'miss' && !!a && !!a.g && (!a.match || a.sizeOk === false)));
+      (f.fSeen === 'miss' && inPile)); // 'miss' is the mistakes pile
 }
 
 /** One round: guess (side + size) → replay minute by minute → done. */
-interface Round { trade: Trade; stage: Stage; step: number; guess: Side | null; size: Size | null; userExit: UserExit | null; review: boolean }
+interface Round { trade: Trade; stage: Stage; step: number; guess: Side | null; size: Size | null; userExit: UserExit | null; review: boolean; pile?: PileStatus; pileN?: number }
 
 export function App() {
   const [trades, setTrades] = useState<TradeIndex[] | null>(null);
@@ -112,14 +113,17 @@ export function App() {
 
   const next = useCallback((f: Filters = filters) => {
     if (!trades) return;
-    let P = trades.filter((t) => inPool(t, f, saved.a[t.id], !!skips[t.id]));
+    const pile = saved.pile || {};
+    let P = trades.filter((t) => inPool(t, f, saved.a[t.id], !!skips[t.id], !!pile[t.id]));
     const curId = roundRef.current?.trade.id ?? wanted.current;
     if (P.length > 1 && curId != null) P = P.filter((t) => t.id !== curId);
     setPoolSize(P.length);
     if (!P.length) { setR(null); return; }
     start(P[Math.floor(Math.random() * P.length)]);
-  }, [trades, filters, saved.a, skips, start, setR]);
+  }, [trades, filters, saved.a, saved.pile, skips, start, setR]);
 
+  // Progress saved before the mistakes pile existed: everything already missed goes on it, once.
+  useEffect(() => { if (!saved.pile) updateSaved((s) => (s.pile ? s : { ...s, pile: seedPile(s.a) })); }, [saved.pile, updateSaved]);
   useEffect(() => { if (trades && !roundRef.current) next(); }, [trades]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setFilters = (f: Filters) => { updateSaved((s) => ({ ...s, f })); next(f); };
@@ -138,12 +142,15 @@ export function App() {
     const r = roundRef.current; if (!r || r.stage !== 'guess') return;
     const t = r.trade;
     if (sizeable(t) && !r.size) { setFlashSize(true); return; } // stays until a size is picked
-    const prevNote = saved.a[t.id]?.note || '';
+    const prevNote = saved.a[t.id]?.note || '', now = Date.now();
+    const wrong = g !== t.r || (sizeable(t) && r.size !== t.setup);
+    const res = applyAnswer(saved.pile || seedPile(saved.a), t.id, wrong, now);
     updateSaved((s) => {
       const sk = { ...(s.skips || {}) }; delete sk[t.id]; // answering a skipped trade un-skips it
-      return { ...s, skips: sk, a: { ...s.a, [t.id]: { g, match: g === t.r, size: r.size, sizeOk: sizeable(t) ? r.size === t.setup : null, ts: Date.now(), note: prevNote } } };
+      return { ...s, skips: sk, pile: res.pile, cleared: (s.cleared || 0) + (res.cleared ? 1 : 0),
+        a: { ...s.a, [t.id]: { g, match: g === t.r, size: r.size, sizeOk: sizeable(t) ? r.size === t.setup : null, ts: now, note: prevNote } } };
     });
-    setR({ ...r, stage: 'replay', guess: g });
+    setR({ ...r, stage: 'replay', guess: g, pile: res.status, pileN: res.pile[t.id]?.n });
   };
 
   /** Moves the replay to `step`, applying an exit if given, and finishes at the close. */
@@ -184,7 +191,8 @@ export function App() {
       const a = { ...s.a }, sk = { ...(s.skips || {}) };
       for (const id of Object.keys(incoming)) if (!a[id] || (incoming[id].ts || 0) > (a[id].ts || 0)) { a[id] = incoming[id]; n++; }
       for (const id of Object.keys(incomingSkips)) if (!a[id]) sk[id] = Math.max(sk[id] || 0, incomingSkips[id]);
-      return { ...s, a, skips: sk };
+      // imported misses join the pile (ones already on it keep their progress)
+      return { ...s, a, skips: sk, pile: { ...seedPile(incoming), ...(s.pile || seedPile(s.a)) } };
     });
     return n;
   };
@@ -242,7 +250,7 @@ export function App() {
         <aside className={round ? 'stage-' + round.stage : ''}>
           {round && t ? (
             <>
-              <ActionBar trade={t} stage={round.stage} step={round.step} guess={round.guess} size={round.size} userExit={round.userExit} review={round.review}
+              <ActionBar pile={round.review ? undefined : round.pile} pileN={round.pileN} trade={t} stage={round.stage} step={round.step} guess={round.guess} size={round.size} userExit={round.userExit} review={round.review}
                 flashSize={flashSize} plan={plan} tf={tf} onPlan={setPlan} onSize={pickSize} onAnswer={answer} onSkip={skip} onAdvance={advance} onSell={sell} onNext={() => next()} />
               {round.stage !== 'guess' && <TradePanel key={t.id} trade={t} step={round.step} stage={round.stage} />}
               {round.stage === 'done' && <Journal trade={t} answer={saved.a[t.id]} review={round.review} sessionLosses={sessionLosses} chartsVersion={chartsVersion}
@@ -253,11 +261,11 @@ export function App() {
           ) : !trades || pending ? (
             <div className="box" id="loadingBox"><h3>{!trades ? "Loading RSI Trader's trades…" : 'Loading trade…'}</h3><div className="small">{!trades ? 'About 200 KB. The first trade appears in a moment.' : 'Fetching his messages and the option prices for this day.'}</div></div>
           ) : (
-            <div className="box" id="emptyBox">No trades match these filters. Change a filter above, or set "Show" to "Any trade".</div>
+            <div className="box" id="emptyBox">{filters.fSeen === 'miss' && !Object.keys(saved.pile || {}).length ? <>Your mistakes pile is empty: nothing to redo. Set "Show" to "Trades I haven't done" for new ones.</> : <>No trades match these filters. Change a filter above, or set "Show" to "Any trade".</>}</div>
           )}
         </aside>
       </main>
-      {overlay === 'history' && trades && <History trades={byId} answers={saved.a} skips={skips} onClose={() => setOverlay(null)} onOpen={reopen} onImport={importAnswers} />}
+      {overlay === 'history' && trades && <History trades={byId} answers={saved.a} skips={skips} pile={saved.pile || {}} cleared={saved.cleared || 0} onDrill={() => { setOverlay(null); setFilters({ ...DEFAULT_FILTERS, fSeen: 'miss' }); }} onClose={() => setOverlay(null)} onOpen={reopen} onImport={importAnswers} />}
       {overlay === 'charts' && <ChartsDialog onClose={() => setOverlay(null)} onChanged={refreshCharts} />}
     </>
   );

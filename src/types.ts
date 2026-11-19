@@ -94,6 +94,8 @@ export interface SavedState {
   skips?: Record<string, number>; // trade id -> when you skipped it
   f?: Filters | null;
   plan?: ExitPlan;
+  pile?: Record<string, { n: number; ts: number }>; // mistakes pile (lib/pile.ts); missing until first seeded
+  cleared?: number; // trades cleared from the pile so far
 }
 
 declare global {

@@ -3,18 +3,21 @@ import type { ExitPlan, Side, Size, Stage, Trade, UserExit } from '../types';
 import { CHART_STOP } from '../types';
 import { optAt, pctAt, sideName, sizeable, maxStep } from '../lib/trade';
 import { pct, tone } from '../lib/format';
+import { CLEAR_AFTER, type PileStatus } from '../lib/pile';
 
 interface Props {
   trade: Trade; stage: Stage; step: number; guess: Side | null; size: Size | null; userExit: UserExit | null; review: boolean;
+  pile?: PileStatus; pileN?: number;
   flashSize: boolean; plan: ExitPlan; tf: number; onPlan: (p: ExitPlan) => void;
   onSize: (s: Size) => void; onAnswer: (g: Side) => void; onSkip: () => void; onAdvance: (n: number) => void; onSell: () => void; onNext: () => void;
 }
 
-export function Verdict({ trade, guess, size }: { trade: Trade; guess: Side | null; size: Size | null }) {
+export function Verdict({ trade, guess, size, pile, pileN }: { trade: Trade; guess: Side | null; size: Size | null; pile?: PileStatus; pileN?: number }) {
   return (
     <>
       {guess === trade.r ? <b className="good">Same side as RSI Trader.</b> : <b className="bad">RSI Trader took {sideName(trade.r)}.</b>}
       {sizeable(trade) && size && (size === trade.setup ? <span className="good"> Size right: {trade.setup}.</span> : <span className="bad"> He called it a {trade.setup}.</span>)}
+      {pile && <span className="pile-note"> {pile === 'added' ? 'Added to your mistakes pile.' : pile === 'reset' ? 'Still on your pile: the count starts again.' : pile === 'cleared' ? 'Cleared from your mistakes pile.' : 'Right ' + (pileN ?? 1) + ' of ' + CLEAR_AFTER + ': once more to clear it.'}</span>}
     </>
   );
 }
@@ -80,7 +83,7 @@ export function ActionBar(p: Props) {
     const price = optAt(t, step), r = pctAt(t, step), end = step >= maxStep(t), ue = p.userExit, wrong = p.guess !== t.r;
     return (
       <div className="box" id="actions"><div id="aReplay">
-        <div id="verdict"><Verdict trade={t} guess={p.guess} size={p.size} /></div>
+        <div id="verdict"><Verdict trade={t} guess={p.guess} size={p.size} pile={p.pile} pileN={p.pileN} /></div>
         <div id="pnl">
           {wrong && <span className="hidemob"><span className="small">RSI Trader's {sideName(t.r)} (you picked {sideName(p.guess || '')})</span><br /></span>}
           ${price.toFixed(2)} <span className={tone(r)}>{pct(r)}</span> <span className="small">{step} min in</span>
@@ -102,7 +105,7 @@ export function ActionBar(p: Props) {
   }
   return (
     <div className="box" id="actions"><div id="aDone">
-      <div id="verdict2"><Verdict trade={t} guess={p.guess} size={p.size} /></div>
+      <div id="verdict2"><Verdict trade={t} guess={p.guess} size={p.size} pile={p.pile} pileN={p.pileN} /></div>
       <div className="row"><button className="primary" id="bNext" style={{ flex: 1 }} onClick={p.onNext}>Next trade<kbd>Enter</kbd></button></div>
     </div></div>
   );

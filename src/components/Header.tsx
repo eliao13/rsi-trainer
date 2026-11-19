@@ -21,7 +21,7 @@ export function Header({ filters, onFilter, answers, chartCount, onHistory, onCh
         <label>Setup<select id="fSetup" value={filters.fSetup} onChange={set('fSetup')}><option value="all">All</option><option>Daytrade</option><option>Lotto</option><option>Swing</option><option value="From note">Mentioned in a note</option></select></label>
         <label>Ticker<select id="fTk" value={filters.fTk} onChange={set('fTk')}><option value="all">All</option><option>QQQ</option><option>SPY</option><option>SPX</option><option>IWM</option></select></label>
         <label>Year<select id="fYr" value={filters.fYr} onChange={set('fYr')}><option value="all">All</option><option>2026</option><option>2025</option><option>2024</option><option>2023</option><option>2022</option></select></label>
-        <label>Show<select id="fSeen" value={filters.fSeen} onChange={set('fSeen')}><option value="unseen">Trades I haven't done</option><option value="miss">Ones I got wrong</option><option value="skipped">Ones I skipped</option><option value="any">Any trade</option></select></label>
+        <label>Show<select id="fSeen" value={filters.fSeen} onChange={set('fSeen')}><option value="unseen">Trades I haven't done</option><option value="miss">Mistakes pile</option><option value="skipped">Ones I skipped</option><option value="any">Any trade</option></select></label>
       </div>
       <Stats answers={answers} />
     </header>
