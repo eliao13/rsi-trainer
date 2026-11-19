@@ -2,6 +2,11 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.13.0
+- Chart: your hold is a soft blue band from the entry to your exit (or the close if you held), growing as the replay plays
+- At review, an amber strip under the price shows how long RSI Trader held (entry to when he said he was out, or his last trim); a small legend sits by the zoom buttons
+- Chart: a date label no longer prints over the previous one when two days start close together
+
 ## 2.12.0
 - 20-trade sessions: the Session button starts one; a strip under the header shows "REP 7 / 20" and one cell per trade (right, missed, skipped, current); End finishes early
 - After the 20th trade, a summary: your score, the deck of cards (tap one to review it, "Next trade" comes back), side, size and average exit, what happened on the mistakes pile, and one thing to work on, picked from your most common miss that session

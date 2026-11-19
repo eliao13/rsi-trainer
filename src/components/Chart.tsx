@@ -3,6 +3,8 @@ import type { EtfSeries, Series, Stage, Trade, UserExit } from '../types';
 import type { Divergence } from '../lib/divergence';
 import { aggBars, bands, niceStep, rsi, trama, vwapOnChart } from '../lib/indicators';
 import { fmtET, fmtMD } from '../lib/format';
+import { exitMinute } from '../lib/messages';
+import { maxStep } from '../lib/trade';
 
 interface Props {
   trade: Trade | null;
@@ -110,6 +112,7 @@ export function Chart(props: Props) {
       <canvas id="chart" ref={ref} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
         onPointerLeave={(e) => { onUp(e); setHover(null); }} onDoubleClick={() => setView(NO_VIEW)} />
       {canMove && <div className="chartnav">
+        <span className="legend-held"><i className="you" />you held <i className="him" />he held</span>
         <span className="hint">Drag to scroll back · wheel or pinch to zoom</span>
         <button onClick={() => zoomBy(1 / 1.4)} aria-label="Zoom out">−</button>
         <button onClick={() => zoomBy(1.4)} aria-label="Zoom in">+</button>
@@ -171,7 +174,7 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
     x.strokeStyle = '#1B1F21'; x.beginPath(); x.moveTo(padL, yp(p)); x.lineTo(W - padR, yp(p)); x.stroke();
     x.fillStyle = '#7D878C'; x.fillText(p.toFixed(stepP < 1 ? 2 : stepP < 10 ? 1 : 0), W - padR + 6, yp(p));
   }
-  let lastDay = '';
+  let lastDay = '', lastDayX = -Infinity;
   const everyN = Math.max(1, Math.round(70 / bw));
   // while playing on a wide screen, say what time the right edge is (the window grows as you step)
   const edgeLabel = wide && stage !== 'done';
@@ -180,9 +183,23 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
     const ts = i < nb ? B.t[i] : B.t[nb - 1] + (i - nb + 1) * barSec, dte = new Date(ts * 1000), dayS = fmtMD.format(dte);
     if (dayS !== lastDay && i < nb) {
       if (lastDay || i > i0) { x.strokeStyle = '#2E3437'; x.setLineDash([2, 4]); x.beginPath(); x.moveTo(xi(i) - bw / 2, top); x.lineTo(xi(i) - bw / 2, H - 22); x.stroke(); x.setLineDash([]); }
-      x.fillStyle = '#9AA4A9'; x.fillText(dayS, xi(i) - bw / 2 + 4, H - 6); lastDay = dayS;
+      if (xi(i) - lastDayX > 60) { x.fillStyle = '#9AA4A9'; x.fillText(dayS, xi(i) - bw / 2 + 4, H - 6); lastDayX = xi(i); } lastDay = dayS; // skip a date that would print over the previous one
     }
     if ((i - i0) % everyN === 0 && xi(i) > 22 && xi(i) < W - padR - (edgeLabel ? 70 : 16)) { x.fillStyle = '#7D878C'; x.textAlign = 'center'; x.fillText(fmtET.format(dte), xi(i), H - 18); x.textAlign = 'left'; }
+  }
+  { // held stretches, drawn under the candles: yours as a band (grows with the replay), his as a strip at review
+    const xEntry = padL + (ie - i0 + 1) * bw + ((entrySec - (B.t[ie] + barSec)) / barSec) * bw;
+    const xAt = (m: number) => xEntry + ((m * 60) / barSec) * bw;
+    const clampX = (v: number) => Math.max(padL, Math.min(W - padR, v));
+    if (stage !== 'guess') {
+      const end = userExit ? userExit.m : Math.min(step, maxStep(cur));
+      const a = clampX(xEntry), b = clampX(xAt(end));
+      if (b > a) { x.fillStyle = 'rgba(99,179,237,0.13)'; x.fillRect(a, top, b - a, hP); }
+    }
+    if (stage === 'done') {
+      const out = exitMinute(cur, maxStep(cur));
+      if (out != null) { const a = clampX(xEntry), b = clampX(xAt(out)); if (b > a) { x.fillStyle = '#F0A830'; x.fillRect(a, top + hP + 7, b - a, 3); } }
+    }
   }
   for (let i = i0; i < nbv; i++) {
     // up candles hollow blue, down candles solid orange: shape and colour both carry direction
