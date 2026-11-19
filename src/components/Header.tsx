@@ -3,9 +3,9 @@ import type { Answer, Filters } from '../types';
 import { pct, tone } from '../lib/format';
 import { APP_BUILT, VERSION_LABEL } from '../version';
 
-interface Props { filters: Filters; onFilter: (f: Filters) => void; answers: Record<string, Answer>; chartCount: number; onHistory: () => void; onCharts: () => void }
+interface Props { filters: Filters; onFilter: (f: Filters) => void; answers: Record<string, Answer>; chartCount: number; onHistory: () => void; onCharts: () => void; inSession: boolean; onSession: () => void }
 
-export function Header({ filters, onFilter, answers, chartCount, onHistory, onCharts }: Props) {
+export function Header({ filters, onFilter, answers, chartCount, onHistory, onCharts, inSession, onSession }: Props) {
   const [open, setOpen] = useState(false);
   const set = (k: keyof Filters) => (e: React.ChangeEvent<HTMLSelectElement>) => onFilter({ ...filters, [k]: e.target.value });
   return (
@@ -13,6 +13,7 @@ export function Header({ filters, onFilter, answers, chartCount, onHistory, onCh
       <h1>RSI Trainer <span id="appVersion" title={'Built ' + (APP_BUILT ? new Date(APP_BUILT).toLocaleString() : 'locally') + '. Quote this when reporting a bug.'}>{VERSION_LABEL}</span></h1>
       <div className="hbtns">
         <button id="filterToggle" onClick={() => setOpen(!open)}>Filters</button>
+        {!inSession && <button id="bSession" onClick={onSession} title="Play 20 trades, then see a summary">Session</button>}
         <button id="bHistory" onClick={onHistory}>History<kbd>H</kbd></button>
         <button id="bCharts" onClick={onCharts} title="Load RSI Trader's chart screenshots from your device">{chartCount ? `Charts (${chartCount})` : 'Load charts'}</button>
       </div>

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Answer, EtfSeries, ExitPlan, Filters, Series, Side, Size, Stage, Trade, TradeIndex, UserExit } from './types';
 import { loadEtf, loadEtfM1, loadM1, loadM1Keys, loadSeries, loadTrade, loadTrades, m1Key } from './lib/data';
 import { useSaved } from './lib/storage';
+import { SESSION_LEN } from './lib/session';
+import { SessionBar, SessionSummary } from './components/Session';
 import { MIX_SHARE, applyAnswer, dueText, isDue, nextDue, seedPile, type PileStatus } from './lib/pile';
 import { aggBars, rsi, rsiAt } from './lib/indicators';
 import { entrySwing, swingBreakMinute } from './lib/levels';
@@ -52,7 +54,7 @@ export function App() {
   const [poolSize, setPoolSize] = useState(0);
   const [flashSize, setFlashSize] = useState(false);
   const [sessionLosses, setSessionLosses] = useState(0);
-  const [overlay, setOverlay] = useState<'history' | 'charts' | null>(null);
+  const [overlay, setOverlay] = useState<'history' | 'charts' | 'session' | null>(null);
   const [chartCount, setChartCount] = useState(0);
   const [chartsVersion, setChartsVersion] = useState(0);
 
@@ -137,10 +139,17 @@ export function App() {
   const setPlan = (p: ExitPlan) => updateSaved((s) => ({ ...s, plan: p }));
   /** Skips are recorded, so they show in History and don't come back as "haven't done". */
   const skip = () => {
-    const r = roundRef.current;
-    if (r && r.stage === 'guess' && !r.review) updateSaved((s) => ({ ...s, skips: { ...(s.skips || {}), [r.trade.id]: Date.now() } }));
+    const r = roundRef.current, sess = saved.session;
+    const counts = !!(r && r.stage === 'guess' && !r.review);
+    if (r && counts) updateSaved((s) => ({ ...s, skips: { ...(s.skips || {}), [r.trade.id]: Date.now() },
+      session: s.session && s.session.reps.length < SESSION_LEN ? { ...s.session, reps: [...s.session.reps, { id: r.trade.id, skip: true }] } : s.session }));
+    if (counts && sess && sess.reps.length + 1 >= SESSION_LEN) { setOverlay('session'); return; }
     next();
   };
+  /** Next trade, or the summary once a session's last trade is done. */
+  const goNext = () => { if (saved.session && saved.session.reps.length >= SESSION_LEN) { setOverlay('session'); return; } next(); };
+  const startSession = () => { updateSaved((s) => ({ ...s, session: { ts: Date.now(), reps: [] } })); setOverlay(null); next(); };
+  const endSession = () => updateSaved((s) => ({ ...s, session: undefined }));
   const patchAnswer = useCallback((id: number, patch: Partial<Answer>) => updateSaved((s) => ({ ...s, a: { ...s.a, [id]: { ...s.a[id], ...patch } as Answer } })), [updateSaved]);
 
   const pickSize = (size: Size) => { const r = roundRef.current; if (r && r.stage === 'guess' && sizeable(r.trade)) { setR({ ...r, size }); setFlashSize(false); } };
@@ -154,7 +163,9 @@ export function App() {
     const res = applyAnswer(saved.pile || seedPile(saved.a), t.id, wrong, now);
     updateSaved((s) => {
       const sk = { ...(s.skips || {}) }; delete sk[t.id]; // answering a skipped trade un-skips it
-      return { ...s, skips: sk, pile: res.pile, cleared: (s.cleared || 0) + (res.cleared ? 1 : 0),
+      const session = s.session && s.session.reps.length < SESSION_LEN && !s.session.reps.some((x) => x.id === t.id)
+        ? { ...s.session, reps: [...s.session.reps, { id: t.id, side: g === t.r, size: sizeable(t) ? r.size === t.setup : null, pile: res.status }] } : s.session;
+      return { ...s, skips: sk, session, pile: res.pile, cleared: (s.cleared || 0) + (res.cleared ? 1 : 0),
         a: { ...s.a, [t.id]: { g, match: g === t.r, size: r.size, sizeOk: sizeable(t) ? r.size === t.setup : null, ts: now, note: prevNote } } };
     });
     setR({ ...r, stage: 'replay', guess: g, pile: res.status, pileN: res.pile[t.id]?.n });
@@ -210,12 +221,13 @@ export function App() {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase(), r = roundRef.current;
+    if (overlay === 'session' && k === 'enter') { startSession(); e.preventDefault(); return; }
     if (k === 'escape') { setOverlay(null); return; }
     if (k === 'h') { setOverlay(overlay === 'history' ? null : 'history'); return; }
     if (overlay || !r) return;
     if (r.stage === 'guess') { if (k === 'c') answer('C'); else if (k === 'p') answer('P'); else if (k === 'd') pickSize('Daytrade'); else if (k === 'l') pickSize('Lotto'); else if (k === 'k') skip(); else return; }
     else if (r.stage === 'replay') { if (e.key === 'ArrowRight') advance(e.shiftKey ? 15 : 5); else if (k === 's') sell(); else if (k === 'e') advance(99999); else return; }
-    else { if (k === 'enter' || k === 'n' || k === ' ') next(); else return; }
+    else { if (k === 'enter' || k === 'n' || k === ' ') goNext(); else return; }
     e.preventDefault();
   };
   useEffect(() => { const h = (e: KeyboardEvent) => keys.current(e); document.addEventListener('keydown', h); return () => document.removeEventListener('keydown', h); }, []);
@@ -237,7 +249,8 @@ export function App() {
   const loadingMsg = !trades ? "Loading RSI Trader's trades…" : pending ? 'Loading trade…' : undefined;
   return (
     <>
-      <Header filters={filters} onFilter={setFilters} answers={saved.a} chartCount={chartCount} onHistory={() => setOverlay('history')} onCharts={() => setOverlay('charts')} />
+      <Header filters={filters} onFilter={setFilters} answers={saved.a} chartCount={chartCount} onHistory={() => setOverlay('history')} onCharts={() => setOverlay('charts')} inSession={!!saved.session} onSession={startSession} />
+      {saved.session && <SessionBar session={saved.session} onEnd={() => setOverlay('session')} />}
       <main>
         <div className="leftcol">
         <section className="box">
@@ -258,7 +271,7 @@ export function App() {
           {round && t ? (
             <>
               <ActionBar pile={round.review ? undefined : round.pile} pileN={round.pileN} trade={t} stage={round.stage} step={round.step} guess={round.guess} size={round.size} userExit={round.userExit} review={round.review}
-                flashSize={flashSize} plan={plan} tf={tf} onPlan={setPlan} onSize={pickSize} onAnswer={answer} onSkip={skip} onAdvance={advance} onSell={sell} onNext={() => next()} />
+                flashSize={flashSize} plan={plan} tf={tf} onPlan={setPlan} onSize={pickSize} onAnswer={answer} onSkip={skip} onAdvance={advance} onSell={sell} onNext={goNext} />
               {round.stage !== 'guess' && <TradePanel key={t.id} trade={t} step={round.step} stage={round.stage} />}
               {round.stage === 'done' && <Journal trade={t} answer={saved.a[t.id]} review={round.review} sessionLosses={sessionLosses} chartsVersion={chartsVersion}
                 onNote={(note) => saved.a[t.id] && patchAnswer(t.id, { note })} onLoadCharts={() => setOverlay('charts')} onChartSaved={() => countCharts().then(setChartCount)} />}
@@ -276,6 +289,11 @@ export function App() {
         </aside>
       </main>
       {overlay === 'history' && trades && <History trades={byId} answers={saved.a} skips={skips} pile={saved.pile || {}} cleared={saved.cleared || 0} onDrill={(all) => { setOverlay(null); setFilters({ ...DEFAULT_FILTERS, fSeen: 'miss' }, all); }} onClose={() => setOverlay(null)} onOpen={reopen} onImport={importAnswers} />}
+      {overlay === 'session' && saved.session && trades && <SessionSummary session={saved.session} answers={saved.a} trades={byId}
+        pileDue={Object.values(saved.pile || {}).filter((e) => isDue(e, Date.now())).length}
+        onNew={startSession} onDone={() => { endSession(); setOverlay(null); if (!roundRef.current || roundRef.current.stage === 'done') next(); }}
+        onPile={() => { endSession(); setOverlay(null); setFilters({ ...DEFAULT_FILTERS, fSeen: 'miss' }); }}
+        onOpen={(id) => reopen(id)} />}
       {overlay === 'charts' && <ChartsDialog onClose={() => setOverlay(null)} onChanged={refreshCharts} />}
     </>
   );

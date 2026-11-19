@@ -288,3 +288,39 @@ button.link-row:hover .mono { color:var(--accent); }
 .pile-pill { color:var(--accent); border-color:var(--accent); margin-right:4px; }
 .pile-top .due { margin-left:auto; font:11px var(--mono); color:var(--dim2); }
 .pile-top .due.now { color:var(--accent); }
+
+/* 20-trade sessions */
+.sessionbar { display:flex; align-items:center; gap:12px; padding:6px 20px; border-bottom:1px solid var(--line); background:var(--panel); }
+@media (min-width:1001px) { .sessionbar { padding-left:max(20px, calc((100% - 1500px) / 2 + 20px)); padding-right:max(20px, calc((100% - 1500px) / 2 + 20px)); } }
+.sessionbar .rep { font:12px var(--mono); color:var(--dim); white-space:nowrap; }
+.sessionbar .rep b { color:var(--text); }
+.sessionbar .deck { flex:1; display:grid; grid-template-columns:repeat(20, minmax(0, 1fr)); gap:3px; max-width:560px; }
+.sessionbar .cell { height:8px; background:#1B1F21; }
+.sessionbar .cell.ok { background:var(--up); } .sessionbar .cell.miss { background:var(--down); } .sessionbar .cell.skip { background:#3A4145; }
+.sessionbar .cell.cur { background:transparent; box-shadow:inset 0 0 0 1.5px var(--accent); }
+.sessionbar button { font-size:12px; padding:3px 10px; }
+.ss-body { display:flex; flex-wrap:wrap; }
+.ss-main { flex:999 1 620px; min-width:0; padding:20px 24px; border-right:1px solid var(--line); }
+.ss-side { flex:1 1 300px; max-width:420px; padding:20px; display:flex; flex-direction:column; gap:10px; }
+.ss-side button { min-height:46px; }
+.ss-score { font:600 64px var(--mono); line-height:1; }
+.ss-score span { color:var(--dim2); font-size:32px; }
+.ss-deck { display:grid; grid-template-columns:repeat(10, minmax(0, 1fr)); gap:5px; margin:18px 0; max-width:760px; }
+.ss-deck .card { height:54px; padding:5px 6px; display:flex; flex-direction:column; justify-content:space-between; align-items:flex-start; text-align:left; border:1px solid var(--line2); }
+.ss-deck .card .n { font:11px var(--mono); color:var(--dim2); }
+.ss-deck .card .lbl { font:600 11px var(--mono); }
+.ss-deck .card.ok { border-color:var(--up); } .ss-deck .card.ok .lbl { color:var(--up); }
+.ss-deck .card.miss { border-color:var(--down); background:#1A1512; } .ss-deck .card.miss .lbl { color:var(--down); }
+.ss-deck .card.skip .lbl { color:var(--dim2); }
+.ss-kpis { border-top:1px solid var(--line); margin:0 -24px; }
+.ss-kpis > div:last-child { border-right:0; }
+.ss-tip { margin-top:18px; border-left:2px solid var(--accent); padding:2px 0 2px 14px; max-width:680px; }
+.ss-tip p { margin:4px 0 0; font-size:17px; line-height:1.5; }
+@media (max-width:700px) {
+  .sessionbar { padding:6px 12px; gap:8px; }
+  .ss-main { padding:14px 12px; border-right:0; }
+  .ss-kpis { margin:0 -12px; }
+  .ss-deck { grid-template-columns:repeat(5, minmax(0, 1fr)); }
+  .ss-side { max-width:none; padding:12px; }
+  .ss-score { font-size:48px; }
+}

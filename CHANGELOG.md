@@ -2,6 +2,11 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.12.0
+- 20-trade sessions: the Session button starts one; a strip under the header shows "REP 7 / 20" and one cell per trade (right, missed, skipped, current); End finishes early
+- After the 20th trade, a summary: your score, the deck of cards (tap one to review it, "Next trade" comes back), side, size and average exit, what happened on the mistakes pile, and one thing to work on, picked from your most common miss that session
+- New session (Enter), Drill the pile, or Back to practice from the summary; a session in progress survives a reload
+
 ## 2.11.0
 - Mistakes pile is spaced out: a missed trade comes back a day later, then three days after a right answer; two rights in a row clear it, a miss starts it over
 - Due pile trades turn up in normal practice (about one in four new trades while any are due), marked "From your mistakes pile"

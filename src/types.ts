@@ -96,6 +96,7 @@ export interface SavedState {
   plan?: ExitPlan;
   pile?: Record<string, { n: number; ts: number; due?: number }>; // mistakes pile (lib/pile.ts); missing until first seeded
   cleared?: number; // trades cleared from the pile so far
+  session?: { ts: number; reps: { id: number; skip?: boolean; side?: boolean; size?: boolean | null; pile?: 'added' | 'reset' | 'progress' | 'cleared' | null }[] }; // a 20-trade session in progress
 }
 
 declare global {
