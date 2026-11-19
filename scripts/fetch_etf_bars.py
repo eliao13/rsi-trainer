@@ -8,8 +8,9 @@ VWAP overlay. The app computes VWAP itself from these bars on each timeframe, as
   add --force to refetch files that already exist
 
 Each file holds: t (bar start in epoch minutes, delta-encoded), h, l, c (price x 1000, integers),
-v (shares). Bars are 09:30-16:00 ET only, unadjusted. Credentials come from the environment's network
-secrets: the proxy adds Alpaca's key headers for data.alpaca.markets.
+v (shares). Bars are 09:30-16:00 ET only, unadjusted. Credentials: ALPACA_KEY_ID and ALPACA_SECRET
+from the environment if set; otherwise none are sent (a cloud session's proxy adds them from its
+network secrets).
 """
 import json, os, sys, time, subprocess, urllib.request, urllib.parse, datetime as dt
 from zoneinfo import ZoneInfo
@@ -20,6 +21,8 @@ REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 ROOT = os.path.join(REPO, 'public', 'data')
 OUT = os.path.join(ROOT, 'etf')
 FORCE = '--force' in sys.argv
+AUTH = ({'APCA-API-KEY-ID': os.environ['ALPACA_KEY_ID'], 'APCA-API-SECRET-KEY': os.environ['ALPACA_SECRET']}
+        if os.environ.get('ALPACA_KEY_ID') and os.environ.get('ALPACA_SECRET') else {})
 
 
 def iso(d):
@@ -35,9 +38,10 @@ def get(sym, start, end, tf):
         if tok:
             q['page_token'] = tok
         url = f'https://data.alpaca.markets/v2/stocks/{sym}/bars?' + urllib.parse.urlencode(q)
+        req = urllib.request.Request(url, headers=AUTH)
         for a in range(5):
             try:
-                with urllib.request.urlopen(url, timeout=60) as r:
+                with urllib.request.urlopen(req, timeout=60) as r:
                     d = json.load(r)
                 break
             except Exception:

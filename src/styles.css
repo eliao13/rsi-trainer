@@ -3,7 +3,8 @@
   --mono:'IBM Plex Mono', ui-monospace, monospace; --sans:'IBM Plex Sans Condensed', system-ui, sans-serif; color-scheme:dark; }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 var(--sans); font-variant-numeric:tabular-nums; }
-b, #pnl, #stats b, td:last-child, .pill, .mono { font-family:var(--mono); }
+/* monospace for numbers and contracts only; bold words inside sentences stay in the text face */
+#pnl, #stats b, #bearTrade b, td:last-child, .pill, .mono { font-family:var(--mono); }
 header { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; padding:10px 20px; border-bottom:1px solid var(--line); }
 /* wide screens: header contents line up with the page (max 1500px, centred); the rule under it stays full width */
 @media (min-width:1001px) { header { padding-left:max(20px, calc((100% - 1500px) / 2 + 20px)); padding-right:max(20px, calc((100% - 1500px) / 2 + 20px)); } }

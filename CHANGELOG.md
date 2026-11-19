@@ -2,6 +2,11 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.10.2
+- Bold words inside sentences (the takeaway, the result line, notes) use the normal text font; only numbers and contracts are monospace
+- README: an "Updating the data" section with the VWAP fetch steps; RSI Trader naming throughout
+- `scripts/fetch_etf_bars.py` can read Alpaca keys from `ALPACA_KEY_ID` / `ALPACA_SECRET`
+
 ## 2.10.1
 - Chart: the "Entry" label drops a line instead of running into the instrument label when the entry is near the left edge
 - Chart: the instrument label has a dark backing, so the swing-stop line passes behind it
