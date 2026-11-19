@@ -2,6 +2,9 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.5.1
+- Dropdown lists (filters, exit plan) are dark with readable text instead of light grey on white
+
 ## 2.5.0
 - New look ("Desk"): graphite background, IBM Plex fonts, hairline panels instead of rounded cards, keycap-style buttons, one amber accent
 - Candles are hollow blue going up and solid orange going down (readable with red-green colour blindness); calls are blue, puts orange

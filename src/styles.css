@@ -11,6 +11,10 @@ header h1 { font:600 13px var(--mono); letter-spacing:.14em; text-transform:uppe
 .hbtns { display:flex; gap:6px; }
 select, button, textarea, input { font:inherit; color:var(--text); background:transparent; border:1px solid var(--line2); border-radius:0; padding:6px 10px; }
 button { font-weight:500; letter-spacing:.04em; }
+/* dropdowns: a solid dark box and dark option list (a transparent box gets the browser's white list) */
+select { background-color:var(--panel); }
+select option, select optgroup { background-color:var(--panel); color:var(--text); }
+select option:checked { background-color:#2E3437; color:var(--text); }
 button { cursor:pointer; touch-action:manipulation; }
 button:hover { border-color:var(--accent); }
 button.primary { background:var(--accent); border-color:var(--accent); color:#0E1112; font-weight:600; }
