@@ -2,6 +2,10 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.10.1
+- Chart: the "Entry" label drops a line instead of running into the instrument label when the entry is near the left edge
+- Chart: the instrument label has a dark backing, so the swing-stop line passes behind it
+
 ## 2.10.0
 - Review chart: drag (or swipe) to scroll back through earlier bars, zoom with the mouse wheel, pinch or the −/+ buttons, double-click or "Reset view" to return
 - Only after the trade ends, so nothing ahead of the replay is shown; the last-price tag hides while scrolled back
