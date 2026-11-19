@@ -2,6 +2,10 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.10.0
+- Review chart: drag (or swipe) to scroll back through earlier bars, zoom with the mouse wheel, pinch or the −/+ buttons, double-click or "Reset view" to return
+- Only after the trade ends, so nothing ahead of the replay is shown; the last-price tag hides while scrolled back
+
 ## 2.9.0
 - Mistakes pile: trades you get wrong (side, or size where he labelled it) come back until you get them right twice in a row; a miss on a retry starts the count again
 - "Show: Mistakes pile" (replaces "Ones I got wrong") drills it; History lists the pile with progress and a "Drill the pile" button (X)
