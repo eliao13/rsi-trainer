@@ -2,6 +2,12 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.5.0
+- New look ("Desk"): graphite background, IBM Plex fonts, hairline panels instead of rounded cards, keycap-style buttons, one amber accent
+- Candles are hollow blue going up and solid orange going down (readable with red-green colour blindness); calls are blue, puts orange
+- TRAMA (length 34, RSI Trader's setting, same maths as the TradingView script) on every timeframe, with an on/off toggle
+- VWAP on the 1, 5 and 15-minute charts, built like TradingView's default (session from 09:30, hlc3 x volume) from real SPY/QQQ/IWM bars with full-market volume, and placed on the chart's index prices; on/off toggle
+
 ## 2.4.2
 - Renamed: the app is now "RSI Trainer", and the trader is "RSI Trader" throughout (saved progress and loaded charts carry over)
 
