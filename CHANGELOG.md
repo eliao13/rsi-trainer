@@ -2,6 +2,12 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.9.0
+- Mistakes pile: trades you get wrong (side, or size where he labelled it) come back until you get them right twice in a row; a miss on a retry starts the count again
+- "Show: Mistakes pile" (replaces "Ones I got wrong") drills it; History lists the pile with progress and a "Drill the pile" button (X)
+- The result line says when a trade joins, moves along or clears the pile
+- Trades you'd already missed, and misses in imported progress, are added to the pile
+
 ## 2.8.0
 - Phones: shorter header (version moved to History), no extra rule above the chart, timeframes and the TRAMA/VWAP toggles on one line
 - Replay: Sell is outlined in blue so it stands out from the time steps
