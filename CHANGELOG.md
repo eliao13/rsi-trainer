@@ -2,6 +2,12 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.7.0
+- History in the Desk layout: headline numbers (played, side match, size match, your average exit, sold below his first trim)
+- Trade table with All / Missed / Against 4h / Lotto filters, a 4h-bias column and tinted misses; ↑ ↓ to move, Enter or tap opens the review
+- Hit rate by situation (with or against the 4h bias, Daytrade or Lotto, time of day) with a 50% tick
+- List of missed trades with what differed; skipped trades, version info and export/import kept
+
 ## 2.6.0
 - Review screen in the Desk layout: "Your calls vs RSI Trader" (side, size and exit side by side, with ✓/✗)
 - "Exits · same entry, different rules": your exit, his posted trims, the rule-based exit, the chart stop, the best possible (hindsight) and holding to the close, each with a bar from a shared zero line
