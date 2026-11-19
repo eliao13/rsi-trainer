@@ -237,7 +237,10 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
   if (xe > padL && xe < W - padR) {
     x.strokeStyle = '#F0A830'; x.setLineDash([5, 4]); x.beginPath(); x.moveTo(xe, top); x.lineTo(xe, H - 28); x.stroke(); x.setLineDash([]);
     const et = stage === 'guess' ? 'RSI Trader enters here' : 'Entry';
-    x.fillStyle = '#F0A830'; x.fillText(et, Math.min(xe + 5, W - padR - x.measureText(et).width - 4), top + 8);
+    const ew = x.measureText(et).width, ex = Math.min(xe + 5, W - padR - ew - 4);
+    // drop a line when it would run into the instrument label in the top-left corner (entry near the left edge)
+    const iw = x.measureText(cur.ci + ' · ' + tf + ' min').width, hitsCi = ex < padL + 6 + iw + 8 && ex + ew > padL + 6;
+    x.fillStyle = '#F0A830'; x.fillText(et, ex, hitsCi ? top + 22 : top + 8);
   }
   // the amber last-price tag only when the newest bar is on screen (scrolled back, it would read as the current price)
   const lp = B.c[nbv - 1];
@@ -280,7 +283,11 @@ function draw(cv: HTMLCanvasElement, { trade: cur, message, series, step, tf, st
   }
   x.fillStyle = '#7D878C';
   x.fillText('RSI ' + (R[nbv - 1] == null ? '' : (R[nbv - 1] as number).toFixed(1)) + '   median ' + (bb.mid[nbv - 1] == null ? '' : (bb.mid[nbv - 1] as number).toFixed(1)), padL + 6, yR0 + 10);
-  x.fillText(cur.ci + ' · ' + tf + ' min', padL + 6, top + 8);
+  { // instrument label on a dark backing, so the swing-stop line or overlays pass behind it
+    const ci = cur.ci + ' · ' + tf + ' min', cw = x.measureText(ci).width;
+    x.fillStyle = 'rgba(14,17,18,.88)'; x.fillRect(padL + 2, top + 1, cw + 8, 14);
+    x.fillStyle = '#7D878C'; x.fillText(ci, padL + 6, top + 8);
+  }
   if (hover != null && hover >= i0 && hover < nbv) { // crosshair readout
     const hx = xi(hover), d = new Date(B.t[hover] * 1000), rv = R[hover], mv = bb.mid[hover];
     x.strokeStyle = 'rgba(255,255,255,.35)'; x.beginPath(); x.moveTo(hx, top); x.lineTo(hx, yR0 + hR); x.stroke();
