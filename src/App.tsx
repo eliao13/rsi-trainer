@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Answer, EtfSeries, ExitPlan, Filters, Series, Side, Size, Stage, Trade, TradeIndex, UserExit } from './types';
 import { loadEtf, loadEtfM1, loadM1, loadM1Keys, loadSeries, loadTrade, loadTrades, m1Key } from './lib/data';
 import { useSaved } from './lib/storage';
-import { applyAnswer, seedPile, type PileStatus } from './lib/pile';
+import { MIX_SHARE, applyAnswer, dueText, isDue, nextDue, seedPile, type PileStatus } from './lib/pile';
 import { aggBars, rsi, rsiAt } from './lib/indicators';
 import { entrySwing, swingBreakMinute } from './lib/levels';
 import { findDivergences } from './lib/divergence';
@@ -29,7 +29,7 @@ function inPool(t: TradeIndex, f: Filters, a: Answer | undefined, skipped: boole
 }
 
 /** One round: guess (side + size) → replay minute by minute → done. */
-interface Round { trade: Trade; stage: Stage; step: number; guess: Side | null; size: Size | null; userExit: UserExit | null; review: boolean; pile?: PileStatus; pileN?: number }
+interface Round { trade: Trade; stage: Stage; step: number; guess: Side | null; size: Size | null; userExit: UserExit | null; review: boolean; pile?: PileStatus; pileN?: number; fromPile?: boolean }
 
 export function App() {
   const [trades, setTrades] = useState<TradeIndex[] | null>(null);
@@ -37,6 +37,7 @@ export function App() {
   const [loadError, setLoadError] = useState(false);
   const [saved, updateSaved] = useSaved();
   const [round, setRound] = useState<Round | null>(null);
+  const [pileAll, setPileAll] = useState(false); // drilling the pile: include trades that aren't due yet
   // TRAMA overlay on/off, remembered per browser
   const [showTrama, setShowTramaState] = useState(() => { try { return localStorage.getItem('rsiTrama') !== '0'; } catch { return true; } });
   const setShowTrama = (on: boolean) => { setShowTramaState(on); try { localStorage.setItem('rsiTrama', on ? '1' : '0'); } catch { /* blocked */ } };
@@ -111,22 +112,28 @@ export function App() {
     }).catch(() => { if (wanted.current === ti.id) { setPending(null); setLoadError(true); } });
   }, [setR]);
 
-  const next = useCallback((f: Filters = filters) => {
+  const next = useCallback((f: Filters = filters, all: boolean = pileAll) => {
     if (!trades) return;
-    const pile = saved.pile || {};
-    let P = trades.filter((t) => inPool(t, f, saved.a[t.id], !!skips[t.id], !!pile[t.id]));
+    const pile = saved.pile || {}, now = Date.now();
+    // the pile filter shows only trades that are due again (or all of them, when asked)
+    let P = trades.filter((t) => inPool(t, f, saved.a[t.id], !!skips[t.id], !!pile[t.id] && (all || isDue(pile[t.id], now))));
     const curId = roundRef.current?.trade.id ?? wanted.current;
     if (P.length > 1 && curId != null) P = P.filter((t) => t.id !== curId);
     setPoolSize(P.length);
+    // normal practice: now and then, a pile trade that is due comes back (same ticker/setup/time filters)
+    if (f.fSeen === 'unseen') {
+      const due = trades.filter((t) => t.id !== curId && isDue(pile[t.id], now) && inPool(t, { ...f, fSeen: 'any' }, undefined, false, false));
+      if (due.length && (!P.length || Math.random() < MIX_SHARE)) { start(due[Math.floor(Math.random() * due.length)], () => ({ fromPile: true })); return; }
+    }
     if (!P.length) { setR(null); return; }
-    start(P[Math.floor(Math.random() * P.length)]);
-  }, [trades, filters, saved.a, saved.pile, skips, start, setR]);
+    start(P[Math.floor(Math.random() * P.length)], f.fSeen === 'miss' ? () => ({ fromPile: true }) : undefined);
+  }, [trades, filters, pileAll, saved.a, saved.pile, skips, start, setR]);
 
   // Progress saved before the mistakes pile existed: everything already missed goes on it, once.
   useEffect(() => { if (!saved.pile) updateSaved((s) => (s.pile ? s : { ...s, pile: seedPile(s.a) })); }, [saved.pile, updateSaved]);
   useEffect(() => { if (trades && !roundRef.current) next(); }, [trades]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const setFilters = (f: Filters) => { updateSaved((s) => ({ ...s, f })); next(f); };
+  const setFilters = (f: Filters, all = false) => { updateSaved((s) => ({ ...s, f })); setPileAll(all); next(f, all); };
   const setPlan = (p: ExitPlan) => updateSaved((s) => ({ ...s, plan: p }));
   /** Skips are recorded, so they show in History and don't come back as "haven't done". */
   const skip = () => {
@@ -235,7 +242,7 @@ export function App() {
         <div className="leftcol">
         <section className="box">
           <div id="head">
-            {headTrade ? <><span className="big">{headTrade.tk}</span><span>{fmtDay.format(new Date(headTrade.t * 1000))} · {headTrade.hm} ET</span>{!round?.review && <span className="dim hidemob">{poolSize} trades in this set</span>}</>
+            {headTrade ? <>{round?.fromPile && !round.review && <span className="pill pile-pill" title="A trade you got wrong before, back for another try">From your mistakes pile</span>}<span className="big">{headTrade.tk}</span><span>{fmtDay.format(new Date(headTrade.t * 1000))} · {headTrade.hm} ET</span>{!round?.review && <span className="dim hidemob">{poolSize} trades in this set</span>}</>
               : !trades && <span className="dim">Loading RSI Trader's trades…</span>}
           </div>
           <div className="tf"><span className="tflbl">Chart:</span> {m1Avail && <button id="tf1" className={tf === 1 ? 'on' : ''} onClick={() => setTf(1)} title="1-minute bars for timing exits">1 min</button>}<button id="tf5" className={tf === 5 ? 'on' : ''} onClick={() => setTf(5)}>5 min</button><button id="tf15" className={tf === 15 ? 'on' : ''} onClick={() => setTf(15)}>15 min</button>
@@ -261,11 +268,14 @@ export function App() {
           ) : !trades || pending ? (
             <div className="box" id="loadingBox"><h3>{!trades ? "Loading RSI Trader's trades…" : 'Loading trade…'}</h3><div className="small">{!trades ? 'About 200 KB. The first trade appears in a moment.' : 'Fetching his messages and the option prices for this day.'}</div></div>
           ) : (
-            <div className="box" id="emptyBox">{filters.fSeen === 'miss' && !Object.keys(saved.pile || {}).length ? <>Your mistakes pile is empty: nothing to redo. Set "Show" to "Trades I haven't done" for new ones.</> : <>No trades match these filters. Change a filter above, or set "Show" to "Any trade".</>}</div>
+            <div className="box" id="emptyBox">{filters.fSeen === 'miss' && !Object.keys(saved.pile || {}).length ? <>Your mistakes pile is empty: nothing to redo. Set "Show" to "Trades I haven't done" for new ones.</>
+              : filters.fSeen === 'miss' && !pileAll ? (() => { const w = nextDue(saved.pile || {}, Date.now()); return <>Nothing on your mistakes pile is due yet{w ? <>: the next one is {dueText(w, Date.now())}</> : null}. Trades come back a day after a miss, so they're a real test of memory.
+                  <div className="row"><button className="primary" onClick={() => setFilters(filters, true)}>Drill them anyway ({Object.keys(saved.pile || {}).length})</button></div></>; })()
+              : <>No trades match these filters. Change a filter above, or set "Show" to "Any trade".</>}</div>
           )}
         </aside>
       </main>
-      {overlay === 'history' && trades && <History trades={byId} answers={saved.a} skips={skips} pile={saved.pile || {}} cleared={saved.cleared || 0} onDrill={() => { setOverlay(null); setFilters({ ...DEFAULT_FILTERS, fSeen: 'miss' }); }} onClose={() => setOverlay(null)} onOpen={reopen} onImport={importAnswers} />}
+      {overlay === 'history' && trades && <History trades={byId} answers={saved.a} skips={skips} pile={saved.pile || {}} cleared={saved.cleared || 0} onDrill={(all) => { setOverlay(null); setFilters({ ...DEFAULT_FILTERS, fSeen: 'miss' }, all); }} onClose={() => setOverlay(null)} onOpen={reopen} onImport={importAnswers} />}
       {overlay === 'charts' && <ChartsDialog onClose={() => setOverlay(null)} onChanged={refreshCharts} />}
     </>
   );

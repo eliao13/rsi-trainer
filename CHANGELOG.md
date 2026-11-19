@@ -2,6 +2,12 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.11.0
+- Mistakes pile is spaced out: a missed trade comes back a day later, then three days after a right answer; two rights in a row clear it, a miss starts it over
+- Due pile trades turn up in normal practice (about one in four new trades while any are due), marked "From your mistakes pile"
+- "Show: Mistakes pile" drills only the due ones; when none are due it says when the next one is back and offers "Drill them anyway"
+- History shows when each pile trade is back ("due now", "back in 3 days")
+
 ## 2.10.2
 - Bold words inside sentences (the takeaway, the result line, notes) use the normal text font; only numbers and contracts are monospace
 - README: an "Updating the data" section with the VWAP fetch steps; RSI Trader naming throughout

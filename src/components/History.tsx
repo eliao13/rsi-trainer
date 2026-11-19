@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Answer, TradeIndex } from '../types';
 import { pct, tone } from '../lib/format';
 import { sizeable } from '../lib/trade';
-import { CLEAR_AFTER, type Pile } from '../lib/pile';
+import { CLEAR_AFTER, dueText, isDue, nextDue, type Pile } from '../lib/pile';
 import { APP_BUILT, APP_COMMIT, APP_VERSION, COMMIT_URL } from '../version';
 
 interface Row { t: TradeIndex; a: Answer }
@@ -27,7 +27,7 @@ function Rate({ name, right, total }: { name: string; right: number; total: numb
   );
 }
 
-interface Props { trades: Map<number, TradeIndex>; answers: Record<string, Answer>; skips: Record<string, number>; pile: Pile; cleared: number; onDrill: () => void; onClose: () => void; onOpen: (id: number) => void; onImport: (a: Record<string, Answer>, skips?: Record<string, number>) => number }
+interface Props { trades: Map<number, TradeIndex>; answers: Record<string, Answer>; skips: Record<string, number>; pile: Pile; cleared: number; onDrill: (all: boolean) => void; onClose: () => void; onOpen: (id: number) => void; onImport: (a: Record<string, Answer>, skips?: Record<string, number>) => number }
 
 export function History({ trades, answers, skips, pile, cleared, onDrill, onClose, onOpen, onImport }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -53,7 +53,7 @@ export function History({ trades, answers, skips, pile, cleared, onDrill, onClos
     if (e.key === 'ArrowDown') { setSel(Math.min(shown.length - 1, selRow + 1)); e.preventDefault(); }
     else if (e.key === 'ArrowUp') { setSel(Math.max(0, selRow - 1)); e.preventDefault(); }
     else if (e.key === 'Enter' && shown[selRow]) { onOpen(shown[selRow].t.id); e.preventDefault(); }
-    else if (e.key.toLowerCase() === 'x' && Object.keys(pile).length) { onDrill(); e.preventDefault(); }
+    else if (e.key.toLowerCase() === 'x' && Object.keys(pile).length) { onDrill(!Object.values(pile).some((p) => isDue(p, Date.now()))); e.preventDefault(); }
   };
   useEffect(() => { const h = (e: KeyboardEvent) => nav.current(e); window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, []);
   useEffect(() => { document.querySelector('#histList tr.sel')?.scrollIntoView({ block: 'nearest' }); }, [selRow, filter]);
@@ -61,7 +61,8 @@ export function History({ trades, answers, skips, pile, cleared, onDrill, onClos
   const rate = (name: string, of: Row[], ok: (r: Row) => boolean) => of.length ? <Rate key={name} name={name} right={of.filter(ok).length} total={of.length} /> : null;
   const withB = rows.filter((r) => bias4h(r.t) === 'with'), against = rows.filter((r) => bias4h(r.t) === 'against');
   const pileRows = Object.entries(pile).map(([id, e]) => ({ t: trades.get(+id), a: answers[id], e })).filter((x): x is { t: TradeIndex; a: Answer; e: Pile[string] } => !!x.t && !!x.a)
-    .sort((x, y) => y.e.ts - x.e.ts);
+    .sort((x, y) => (x.e.due ?? 0) - (y.e.due ?? 0));
+  const now = Date.now(), dueCount = pileRows.filter((x) => isDue(x.e, now)).length, soonest = nextDue(pile, now);
 
   const exportProgress = () => {
     const u = URL.createObjectURL(new Blob([JSON.stringify({ v: 2, app: APP_VERSION + '+' + APP_COMMIT, a: answers, skips }, null, 1)], { type: 'application/json' }));
@@ -127,18 +128,22 @@ export function History({ trades, answers, skips, pile, cleared, onDrill, onClos
           </section>
           <section>
             <h3 className="bad">Mistakes pile · {pileRows.length}</h3>
-            <div className="small" style={{ marginBottom: 8 }}>Trades you got wrong come back until you get them right {CLEAR_AFTER} times in a row.{cleared ? ' Cleared so far: ' + cleared + '.' : ''}</div>
+            <div className="small" style={{ marginBottom: 8 }}>Trades you got wrong come back a day later, then three days after a right answer, until you get them right {CLEAR_AFTER} times in a row. Due ones also turn up in normal practice.{cleared ? ' Cleared so far: ' + cleared + '.' : ''}</div>
             {!pileRows.length ? <div className="small">Nothing on the pile.</div> : <ol className="misses">
               {pileRows.slice(0, 8).map(({ t, a, e }) => (
                 <li key={t.id}><button className="link-row" onClick={() => onOpen(t.id)}>
                   <span className="pile-top"><span className="mono">{t.tk} {t.k}{t.r} · {t.d.slice(2)}</span>
+                    <span className={'due ' + (isDue(e, now) ? 'now' : '')}>{dueText(e, now)}</span>
                     <span className="pips" aria-label={e.n + ' of ' + CLEAR_AFTER + ' right'}>{Array.from({ length: CLEAR_AFTER }, (_, i) => <i key={i} className={i < e.n ? 'on' : ''} />)}</span></span>
                   <span className="small">{!a.match ? 'Side: you picked ' + sideWord(a.g).toLowerCase() + ', he took ' + sideWord(t.r).toLowerCase() : a.sizeOk === false ? 'Size: you said ' + a.size + ', he said ' + t.setup : 'Last answer right: ' + e.n + ' of ' + CLEAR_AFTER}{bias4h(t) === 'against' && !a.match ? ' (he faded the 4h)' : ''}</span>
                 </button></li>
               ))}
             </ol>}
             {pileRows.length > 8 && <div className="small" style={{ marginTop: 6 }}>…and {pileRows.length - 8} more.</div>}
-            {pileRows.length > 0 && <button className="primary" id="bDrill" style={{ width: '100%', marginTop: 12, minHeight: 44 }} onClick={onDrill}>Drill the pile ({pileRows.length})<kbd>X</kbd></button>}
+            {pileRows.length > 0 && (dueCount
+              ? <button className="primary" id="bDrill" style={{ width: '100%', marginTop: 12, minHeight: 44 }} onClick={() => onDrill(false)}>Drill the due ones ({dueCount})<kbd>X</kbd></button>
+              : <><div className="small" style={{ marginTop: 12 }}>Nothing due yet{soonest ? ': the next one is ' + dueText(soonest, now) : ''}.</div>
+                  <button id="bDrill" style={{ width: '100%', marginTop: 8, minHeight: 44 }} onClick={() => onDrill(true)}>Drill them anyway ({pileRows.length})<kbd>X</kbd></button></>)}
           </section>
         </aside>
       </div>

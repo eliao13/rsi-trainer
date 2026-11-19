@@ -285,3 +285,6 @@ button.link-row:hover .mono { color:var(--accent); }
 .chartnav .hint { color:var(--dim2); margin-right:auto; }
 .chartnav button { font:12px var(--mono); padding:2px 9px; min-height:28px; }
 @media (max-width:1000px) { .chartnav .hint { display:none; } .chartnav button { min-height:36px; padding:2px 12px; } }
+.pile-pill { color:var(--accent); border-color:var(--accent); margin-right:4px; }
+.pile-top .due { margin-left:auto; font:11px var(--mono); color:var(--dim2); }
+.pile-top .due.now { color:var(--accent); }
