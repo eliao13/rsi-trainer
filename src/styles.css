@@ -5,6 +5,8 @@
 body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 var(--sans); font-variant-numeric:tabular-nums; }
 b, #pnl, #stats b, td:last-child, .pill, .mono { font-family:var(--mono); }
 header { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; padding:10px 20px; border-bottom:1px solid var(--line); }
+/* wide screens: header contents line up with the page (max 1500px, centred); the rule under it stays full width */
+@media (min-width:1001px) { header { padding-left:max(20px, calc((100% - 1500px) / 2 + 20px)); padding-right:max(20px, calc((100% - 1500px) / 2 + 20px)); } }
 header h1 { font:600 13px var(--mono); letter-spacing:.14em; text-transform:uppercase; margin:0 4px 0 0; }
 #filters { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:flex-end; }
 #filters label { color:var(--dim); font-size:12px; display:flex; flex-direction:column; gap:3px; }
@@ -236,9 +238,10 @@ ol.misses { list-style:none; margin:0; padding:0; }
 ol.misses li { border-bottom:1px solid #1B1F21; }
 button.link-row { display:flex; flex-direction:column; gap:2px; width:100%; text-align:left; border:0; padding:9px 0; background:none; }
 button.link-row:hover .mono { color:var(--accent); }
+.hist-empty { padding:16px 24px; border-bottom:1px solid var(--line); }
 .hist-foot { margin:0; padding:16px 24px; border-top:1px solid var(--line); }
 @media (max-width:700px) {
-  .hist-head, .hist-tools, .hist-keys, .hist-foot { padding-left:12px; padding-right:12px; }
+  .hist-head, .hist-tools, .hist-keys, .hist-foot, .hist-empty { padding-left:12px; padding-right:12px; }
   .kpis > div { flex:1 1 45%; padding:10px 12px; }
   .kpis b { font-size:20px; }
   #history table.hist-table th:first-child, #history table.hist-table td:first-child { padding-left:12px; }
@@ -247,4 +250,21 @@ button.link-row:hover .mono { color:var(--accent); }
   #history table.hist-table { font-size:12px; }
   #history table.hist-table td, #history table.hist-table th { white-space:nowrap; padding-left:5px; padding-right:5px; }
   #history table.hist-table td .small { display:none; }
+}
+
+/* replay: Sell is the decision, so it stands out from the time steps */
+#bSell:not(:disabled) { border-color:var(--up); color:var(--up); }
+
+/* phones: header on two short rows, chart card without the extra rule, timeframe and legend on one line */
+@media (max-width:700px) {
+  header { padding:8px 12px 6px; gap:6px 8px; }
+  header h1 { font-size:12px; flex:1; }
+  #appVersion { display:none; }
+  .hbtns button { padding:5px 8px; font-size:13px; }
+  #stats { padding-top:2px; }
+  .leftcol > section.box:first-child { border-top:0; padding-top:4px; }
+  .tflbl { display:none; }
+  .tf { flex-wrap:nowrap; gap:2px; }
+  .tf button { padding:4px 8px; }
+  .legend { gap:6px; }
 }

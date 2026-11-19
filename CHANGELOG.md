@@ -2,6 +2,12 @@
 
 The version and build are shown next to the title (e.g. `v2.3.0 · a0ad476`) and in History. Quote both when reporting a bug.
 
+## 2.8.0
+- Phones: shorter header (version moved to History), no extra rule above the chart, timeframes and the TRAMA/VWAP toggles on one line
+- Replay: Sell is outlined in blue so it stands out from the time steps
+- Wide screens: the header's contents line up with the page instead of running to the window edges
+- History: "No trades yet" has the same side spacing as the rest of the page
+
 ## 2.7.0
 - History in the Desk layout: headline numbers (played, side match, size match, your average exit, sold below his first trim)
 - Trade table with All / Missed / Against 4h / Lotto filters, a 4h-bias column and tinted misses; ↑ ↓ to move, Enter or tap opens the review

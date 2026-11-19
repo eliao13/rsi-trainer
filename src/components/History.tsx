@@ -77,7 +77,7 @@ export function History({ trades, answers, skips, onClose, onOpen, onImport }: P
         <span className="small">Saved in this browser only: use Export to back it up or move it to another device.</span>
         <button id="bHistClose" onClick={onClose}>Close<kbd>Esc</kbd></button>
       </div>
-      {!rows.length ? <div className="box small">No trades yet. Play one and it shows up here.</div> : <>
+      {!rows.length ? <div className="hist-empty small">No trades yet. Play one and it shows up here.</div> : <>
       <div className="kpis">
         <div><span>Played</span><b>{rows.length}</b><em>{skipped.length} skipped</em></div>
         <div><span>Side match</span><b>{Math.round((same / rows.length) * 100)}%</b><em>{same} of {rows.length}</em></div>
